@@ -8,9 +8,8 @@ import {
 } from "@prisma/client";
 
 import { prisma } from "@/server/db";
-import { createTrustedWorkspaceContext } from "@/server/workspace-context";
+import { getCurrentWorkspaceContext } from "@/server/auth/context";
 
-const demoWorkspaceSlug = "portfolio-operations";
 const recentRangeHours = 24;
 
 type LatestCheck = Pick<
@@ -67,19 +66,16 @@ export type DashboardServiceRow = ServiceWithLatestCheck & {
   latestCheck: LatestCheck | null;
 };
 
-export async function getTrustedDashboardContext() {
-  const workspace = await prisma.workspace.findUnique({
-    where: { slug: demoWorkspaceSlug },
-    select: { id: true, name: true, slug: true },
-  });
+export async function getDashboardContext() {
+  const context = await getCurrentWorkspaceContext();
 
-  if (!workspace) {
+  if (!context) {
     return null;
   }
 
   return {
-    workspace,
-    context: createTrustedWorkspaceContext(workspace.id, "local-dashboard"),
+    workspace: context.workspace,
+    context,
   };
 }
 
@@ -160,18 +156,18 @@ async function listServicesWithLatestCheck(workspaceId: string) {
 }
 
 export async function getOverviewSummary() {
-  const trusted = await getTrustedDashboardContext();
+  const dashboard = await getDashboardContext();
 
-  if (!trusted) {
+  if (!dashboard) {
     return null;
   }
 
   const since = new Date(Date.now() - recentRangeHours * 60 * 60 * 1_000);
   const [services, failedChecks, operationalEvents] = await Promise.all([
-    listServicesWithLatestCheck(trusted.context.workspaceId),
+    listServicesWithLatestCheck(dashboard.context.workspaceId),
     prisma.healthCheck.findMany({
       where: {
-        workspaceId: trusted.context.workspaceId,
+        workspaceId: dashboard.context.workspaceId,
         status: HealthCheckStatus.FAILURE,
         checkedAt: { gte: since },
       },
@@ -196,7 +192,7 @@ export async function getOverviewSummary() {
       },
     }),
     prisma.operationalEvent.findMany({
-      where: { workspaceId: trusted.context.workspaceId },
+      where: { workspaceId: dashboard.context.workspaceId },
       orderBy: { occurredAt: "desc" },
       take: 5,
     }),
@@ -207,7 +203,9 @@ export async function getOverviewSummary() {
   const counts = calculateStatusCounts(services);
 
   return {
-    workspace: trusted.workspace,
+    workspace: dashboard.workspace,
+    user: dashboard.context.user,
+    role: dashboard.context.role,
     services: serviceRows,
     activeServiceCount: activeServices.length,
     counts,
@@ -224,14 +222,14 @@ export async function getServiceListReadModel(filters: {
   environment?: string;
   status?: string;
 } = {}) {
-  const trusted = await getTrustedDashboardContext();
+  const dashboard = await getDashboardContext();
 
-  if (!trusted) {
+  if (!dashboard) {
     return null;
   }
 
   const services = (await listServicesWithLatestCheck(
-    trusted.context.workspaceId,
+    dashboard.context.workspaceId,
   )).map(toDashboardServiceRow);
   const query = filters.query?.trim().toLowerCase() ?? "";
   const environment = filters.environment;
@@ -253,7 +251,9 @@ export async function getServiceListReadModel(filters: {
   });
 
   return {
-    workspace: trusted.workspace,
+    workspace: dashboard.workspace,
+    user: dashboard.context.user,
+    role: dashboard.context.role,
     services,
     filteredServices,
     counts: calculateStatusCounts(services),
@@ -262,16 +262,16 @@ export async function getServiceListReadModel(filters: {
 }
 
 export async function getServiceDetailReadModel(serviceId: string) {
-  const trusted = await getTrustedDashboardContext();
+  const dashboard = await getDashboardContext();
 
-  if (!trusted) {
+  if (!dashboard) {
     return null;
   }
 
   const service = await prisma.service.findFirst({
     where: {
       id: serviceId,
-      workspaceId: trusted.context.workspaceId,
+      workspaceId: dashboard.context.workspaceId,
     },
     include: {
       healthChecks: {
@@ -292,7 +292,9 @@ export async function getServiceDetailReadModel(serviceId: string) {
     null;
 
   return {
-    workspace: trusted.workspace,
+    workspace: dashboard.workspace,
+    user: dashboard.context.user,
+    role: dashboard.context.role,
     service: serviceRow,
     history: service.healthChecks,
     latestCheck,

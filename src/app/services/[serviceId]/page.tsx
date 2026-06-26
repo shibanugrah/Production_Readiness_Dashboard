@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { AuthenticatedShell } from "@/components/dashboard/authenticated-shell";
 import {
   formatHttpStatus,
   formatLatency,
@@ -20,6 +21,7 @@ import {
   StatusHistoryStrip,
 } from "@/components/dashboard/service-components";
 import { CheckResultBadge, StatusBadge } from "@/components/dashboard/status";
+import { canRunChecks } from "@/server/auth/permissions";
 import { isLocalDemoActionsEnabled } from "@/server/dashboard/local-demo";
 import { getServiceDetailReadModel } from "@/server/dashboard/read-models";
 
@@ -42,6 +44,7 @@ export default async function ServiceDetailPage({
   const { service, latestCheck, latestFailedCheck, history } = model;
 
   return (
+    <AuthenticatedShell>
     <div className="space-y-5">
       <PageHeader
         eyebrow={
@@ -55,7 +58,7 @@ export default async function ServiceDetailPage({
         description={`${service.environment} service monitored at ${service.healthPath}`}
         actions={
           <RunChecksControl
-            enabled={isLocalDemoActionsEnabled()}
+            enabled={isLocalDemoActionsEnabled() && canRunChecks(model)}
             returnPath={`/services/${service.id}`}
             result={checksResult}
           />
@@ -223,5 +226,6 @@ export default async function ServiceDetailPage({
         </dl>
       </Panel>
     </div>
+    </AuthenticatedShell>
   );
 }

@@ -1,9 +1,11 @@
 import { ServiceStatus } from "@prisma/client";
 
+import { AuthenticatedShell } from "@/components/dashboard/authenticated-shell";
 import { formatLatency, formatRelativeTime } from "@/components/dashboard/format";
 import { AddServicePanel, RunChecksControl } from "@/components/dashboard/local-actions";
 import { DataTable, EmptyState, MetricCard, PageHeader, TextLink } from "@/components/dashboard/primitives";
 import { StatusBadge } from "@/components/dashboard/status";
+import { canManageServices, canRunChecks } from "@/server/auth/permissions";
 import { isLocalDemoActionsEnabled } from "@/server/dashboard/local-demo";
 import { getServiceListReadModel } from "@/server/dashboard/read-models";
 
@@ -22,21 +24,24 @@ export default async function ServicesPage({
 
   if (!model) {
     return (
-      <EmptyState
-        title="No workspace found"
-        description="Seed the local database to create services."
-      />
+      <AuthenticatedShell>
+        <EmptyState
+          title="No workspace found"
+          description="Your authenticated account is not a member of a workspace."
+        />
+      </AuthenticatedShell>
     );
   }
 
   return (
+    <AuthenticatedShell>
     <div className="space-y-5">
       <PageHeader
         title="Services"
         description="Monitor registered services using persisted health checks and current service state."
         actions={
           <RunChecksControl
-            enabled={isLocalDemoActionsEnabled()}
+            enabled={isLocalDemoActionsEnabled() && canRunChecks(model)}
             returnPath="/services"
             result={checksResult}
           />
@@ -136,7 +141,11 @@ export default async function ServicesPage({
         </div>
       </section>
 
-      <AddServicePanel enabled={isLocalDemoActionsEnabled()} result={serviceResult} />
+      <AddServicePanel
+        enabled={isLocalDemoActionsEnabled() && canManageServices(model)}
+        result={serviceResult}
+      />
     </div>
+    </AuthenticatedShell>
   );
 }

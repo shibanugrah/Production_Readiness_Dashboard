@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode, useState } from "react";
 
+import { signOutAction } from "@/server/auth/actions";
+
 const navigation = [
   { href: "/", label: "Overview", icon: "OV" },
   { href: "/services", label: "Services", icon: "SV" },
@@ -21,7 +23,20 @@ function isActiveRoute(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+export type AppShellUser = {
+  name: string;
+  email: string;
+  role: string;
+  workspaceName: string;
+};
+
+function SidebarContent({
+  onNavigate,
+  user,
+}: {
+  onNavigate?: () => void;
+  user: AppShellUser;
+}) {
   const pathname = usePathname();
 
   return (
@@ -69,25 +84,34 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       <div className="space-y-3 px-3 pb-5">
         <div className="rounded-lg border border-slate-200 bg-white p-3">
           <p className="text-sm font-semibold text-slate-900">
-            Portfolio Operations
+            {user.workspaceName}
           </p>
-          <p className="text-xs text-slate-500">Local workspace</p>
+          <p className="text-xs text-slate-500">{user.name}</p>
+          <p className="mt-1 text-xs font-medium text-blue-600">{user.role}</p>
         </div>
-        <p className="px-2 text-xs text-slate-500">
-          Operator authentication is not connected yet.
-        </p>
+        <form action={signOutAction}>
+          <button className="w-full rounded-md border border-slate-200 px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-50">
+            Sign out
+          </button>
+        </form>
       </div>
     </div>
   );
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  user,
+}: {
+  children: ReactNode;
+  user: AppShellUser;
+}) {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-slate-200 bg-white lg:block">
-        <SidebarContent />
+        <SidebarContent user={user} />
       </aside>
       {drawerOpen ? (
         <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true">
@@ -98,7 +122,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             onClick={() => setDrawerOpen(false)}
           />
           <aside className="relative z-10 h-full w-72 border-r border-slate-200 bg-white shadow-xl">
-            <SidebarContent onNavigate={() => setDrawerOpen(false)} />
+            <SidebarContent user={user} onNavigate={() => setDrawerOpen(false)} />
           </aside>
         </div>
       ) : null}
@@ -125,7 +149,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 Search services, events, incidents...
               </div>
               <span className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
-                Status from checks
+                {user.role === "VIEWER" ? "Read-only" : "Operator"}
               </span>
             </div>
           </div>

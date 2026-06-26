@@ -1,7 +1,7 @@
 import { Prisma, Service, ServiceEnvironment, ServiceStatus } from "@prisma/client";
 
 import { prisma } from "@/server/db";
-import { TrustedWorkspaceContext } from "@/server/workspace-context";
+import { WorkspaceContext } from "@/server/workspace-context";
 import {
   ServiceInput,
   validateServiceInput,
@@ -98,7 +98,7 @@ function isUniqueConstraintError(error: unknown) {
 
 async function ensureSlugAvailable(
   client: ServiceRepositoryClient,
-  context: TrustedWorkspaceContext,
+  context: WorkspaceContext,
   slug: string,
   excludingServiceId?: string,
 ) {
@@ -126,7 +126,7 @@ async function ensureSlugAvailable(
 }
 
 export async function createService(
-  context: TrustedWorkspaceContext,
+  context: WorkspaceContext,
   input: ServiceInput,
   client: ServiceRepositoryClient = defaultClient,
 ) {
@@ -156,7 +156,7 @@ export async function createService(
 }
 
 export async function listServicesForWorkspace(
-  context: TrustedWorkspaceContext,
+  context: WorkspaceContext,
   client: ServiceRepositoryClient = defaultClient,
 ) {
   return client.service.findMany({
@@ -166,7 +166,7 @@ export async function listServicesForWorkspace(
 }
 
 export async function getServiceForWorkspace(
-  context: TrustedWorkspaceContext,
+  context: WorkspaceContext,
   serviceId: string,
   client: ServiceRepositoryClient = defaultClient,
 ) {
@@ -179,7 +179,7 @@ export async function getServiceForWorkspace(
 }
 
 export async function updateServiceForWorkspace(
-  context: TrustedWorkspaceContext,
+  context: WorkspaceContext,
   serviceId: string,
   input: ServiceInput,
   client: ServiceRepositoryClient = defaultClient,

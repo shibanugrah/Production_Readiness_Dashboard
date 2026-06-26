@@ -9,6 +9,7 @@ import {
   ServiceWithLatestCheck,
 } from "@/server/dashboard/read-models";
 import { prisma } from "@/server/db";
+import { getCurrentWorkspaceContext } from "@/server/auth/context";
 
 vi.mock("@/server/db", () => ({
   prisma: {
@@ -17,8 +18,13 @@ vi.mock("@/server/db", () => ({
     },
     service: {
       findFirst: vi.fn(),
+      findMany: vi.fn(),
     },
   },
+}));
+
+vi.mock("@/server/auth/context", () => ({
+  getCurrentWorkspaceContext: vi.fn(),
 }));
 
 function serviceFixture(
@@ -96,13 +102,21 @@ describe("dashboard read model calculations", () => {
     });
   });
 
-  it("returns null for a missing service in the trusted workspace", async () => {
-    vi.mocked(prisma.workspace.findUnique).mockResolvedValue({
-      id: "workspace_1",
-      name: "Portfolio Operations",
-      slug: "portfolio-operations",
-      createdAt: new Date("2026-06-26T00:00:00.000Z"),
-      updatedAt: new Date("2026-06-26T00:00:00.000Z"),
+  it("returns null for a missing service in the authenticated workspace", async () => {
+    vi.mocked(getCurrentWorkspaceContext).mockResolvedValue({
+      workspaceId: "workspace_1",
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        name: "Demo Owner",
+        email: "owner@example.local",
+      },
+      workspace: {
+        id: "workspace_1",
+        name: "Portfolio Operations",
+        slug: "portfolio-operations",
+      },
+      role: "OWNER",
     });
     vi.mocked(prisma.service.findFirst).mockResolvedValue(null);
 
@@ -113,6 +127,37 @@ describe("dashboard read model calculations", () => {
           id: "missing",
           workspaceId: "workspace_1",
         },
+      }),
+    );
+  });
+
+  it("does not let browser-provided workspace IDs alter service list scoping", async () => {
+    vi.mocked(getCurrentWorkspaceContext).mockResolvedValue({
+      workspaceId: "workspace_a",
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        name: "Demo Owner",
+        email: "owner@example.local",
+      },
+      workspace: {
+        id: "workspace_a",
+        name: "Workspace A",
+        slug: "workspace-a",
+      },
+      role: "OWNER",
+    });
+    vi.mocked(prisma.service.findMany).mockResolvedValue([]);
+
+    const { getServiceListReadModel } = await import("@/server/dashboard/read-models");
+    await getServiceListReadModel({
+      query: "",
+      workspaceId: "workspace_b",
+    } as unknown as Parameters<typeof getServiceListReadModel>[0]);
+
+    expect(prisma.service.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { workspaceId: "workspace_a" },
       }),
     );
   });

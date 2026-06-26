@@ -5,6 +5,8 @@ import {
   WorkspaceRole,
 } from "@prisma/client";
 
+import { hashPassword } from "../src/server/auth/password";
+
 const prisma = new PrismaClient();
 
 const demoWorkspace = {
@@ -12,7 +14,40 @@ const demoWorkspace = {
   slug: "portfolio-operations",
 };
 
-const demoUserId = "local-demo-owner";
+const legacyDemoUserId = "local-demo-owner";
+
+function requiredEnv(name: string) {
+  const value = process.env[name];
+
+  if (!value) {
+    throw new Error(`Missing required demo auth environment variable: ${name}`);
+  }
+
+  return value;
+}
+
+async function upsertDemoUser({
+  name,
+  email,
+  password,
+}: {
+  name: string;
+  email: string;
+  password: string;
+}) {
+  return prisma.user.upsert({
+    where: { email },
+    update: {
+      name,
+      passwordHash: await hashPassword(password),
+    },
+    create: {
+      name,
+      email,
+      passwordHash: await hashPassword(password),
+    },
+  });
+}
 
 async function main() {
   const workspace = await prisma.workspace.upsert({
@@ -21,20 +56,50 @@ async function main() {
     create: demoWorkspace,
   });
 
-  await prisma.workspaceMember.upsert({
-    where: {
-      workspaceId_userId: {
-        workspaceId: workspace.id,
-        userId: demoUserId,
-      },
-    },
-    update: { role: WorkspaceRole.OWNER },
-    create: {
-      workspaceId: workspace.id,
-      userId: demoUserId,
+  await prisma.workspaceMember.deleteMany({
+    where: { workspaceId: workspace.id, userId: legacyDemoUserId },
+  });
+  await prisma.user.deleteMany({ where: { id: legacyDemoUserId } });
+
+  const demoUsers = [
+    {
+      name: "Demo Owner",
+      email: requiredEnv("DEMO_OWNER_EMAIL").toLowerCase(),
+      password: requiredEnv("DEMO_OWNER_PASSWORD"),
       role: WorkspaceRole.OWNER,
     },
-  });
+    {
+      name: "Demo Admin",
+      email: requiredEnv("DEMO_ADMIN_EMAIL").toLowerCase(),
+      password: requiredEnv("DEMO_ADMIN_PASSWORD"),
+      role: WorkspaceRole.ADMIN,
+    },
+    {
+      name: "Demo Viewer",
+      email: requiredEnv("DEMO_VIEWER_EMAIL").toLowerCase(),
+      password: requiredEnv("DEMO_VIEWER_PASSWORD"),
+      role: WorkspaceRole.VIEWER,
+    },
+  ];
+
+  for (const demoUser of demoUsers) {
+    const user = await upsertDemoUser(demoUser);
+
+    await prisma.workspaceMember.upsert({
+      where: {
+        workspaceId_userId: {
+          workspaceId: workspace.id,
+          userId: user.id,
+        },
+      },
+      update: { role: demoUser.role },
+      create: {
+        workspaceId: workspace.id,
+        userId: user.id,
+        role: demoUser.role,
+      },
+    });
+  }
 
   const services = [
     {
@@ -91,7 +156,7 @@ async function main() {
   }
 
   console.log(
-    `Seeded workspace "${workspace.name}" with ${services.length} services.`,
+    `Seeded workspace "${workspace.name}" with ${services.length} services and ${demoUsers.length} demo users.`,
   );
 }
 

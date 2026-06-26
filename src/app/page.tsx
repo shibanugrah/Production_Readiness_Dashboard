@@ -1,10 +1,12 @@
 import { ServiceStatus } from "@prisma/client";
 
+import { AuthenticatedShell } from "@/components/dashboard/authenticated-shell";
 import { EmptyState, MetricCard, PageHeader, Panel, DataTable, TextLink } from "@/components/dashboard/primitives";
 import { ServiceStatusCard } from "@/components/dashboard/service-components";
 import { CheckResultBadge, StatusBadge } from "@/components/dashboard/status";
 import { formatHttpStatus, formatLatency, formatRelativeTime } from "@/components/dashboard/format";
 import { RunChecksControl } from "@/components/dashboard/local-actions";
+import { canRunChecks } from "@/server/auth/permissions";
 import { isLocalDemoActionsEnabled } from "@/server/dashboard/local-demo";
 import { getOverviewSummary } from "@/server/dashboard/read-models";
 
@@ -18,10 +20,12 @@ export default async function OverviewPage({
 
   if (!summary) {
     return (
-      <EmptyState
-        title="No workspace found"
-        description="Seed the local database to create the Portfolio Operations workspace."
-      />
+      <AuthenticatedShell>
+        <EmptyState
+          title="No workspace found"
+          description="Your authenticated account is not a member of a workspace."
+        />
+      </AuthenticatedShell>
     );
   }
 
@@ -29,13 +33,14 @@ export default async function OverviewPage({
     typeof params.checks === "string" ? params.checks : undefined;
 
   return (
+    <AuthenticatedShell>
     <div className="space-y-5">
       <PageHeader
         title="Overview"
         description="Current readiness is calculated from active services and persisted health-check evidence."
         actions={
           <RunChecksControl
-            enabled={isLocalDemoActionsEnabled()}
+            enabled={isLocalDemoActionsEnabled() && canRunChecks(summary)}
             returnPath="/"
             result={checksResult}
           />
@@ -145,5 +150,6 @@ export default async function OverviewPage({
         </div>
       </div>
     </div>
+    </AuthenticatedShell>
   );
 }

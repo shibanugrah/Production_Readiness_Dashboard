@@ -55,6 +55,8 @@ export function RunChecksControl({
       ? "Checks completed."
       : result === "error"
         ? "Checks failed safely."
+        : result === "denied"
+          ? "Your role cannot run checks."
         : result === "disabled"
           ? "Local checks are disabled."
           : null;
@@ -91,6 +93,8 @@ export function AddServicePanel({
       ? "Service created."
       : result === "error"
         ? "Service could not be created."
+        : result === "denied"
+          ? "Your role cannot create services."
         : result === "disabled"
           ? "Local service creation is disabled."
           : null;

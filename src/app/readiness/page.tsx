@@ -1,7 +1,9 @@
+import { AuthenticatedShell } from "@/components/dashboard/authenticated-shell";
 import { EmptyState, PageHeader, Panel } from "@/components/dashboard/primitives";
 
 export default function ReadinessPage() {
   return (
+    <AuthenticatedShell>
     <div className="space-y-5">
       <PageHeader
         title="Readiness"
@@ -14,5 +16,6 @@ export default function ReadinessPage() {
         />
       </Panel>
     </div>
+    </AuthenticatedShell>
   );
 }

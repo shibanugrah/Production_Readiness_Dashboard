@@ -2,9 +2,9 @@
 
 Production Readiness Dashboard is the foundation for a multi-tenant operational control plane. Its first job is to prove that the app can start reproducibly, validate configuration, connect to PostgreSQL, and expose a safe self-health endpoint.
 
-This repository currently implements Phase 1C. It includes a workspace-scoped service registry domain, server-side service validation, local seed data, a protected health-check runner, persisted health-check evidence, and a data-driven monitoring dashboard UI.
+This repository currently implements session-backed workspace access for the Phase 1 dashboard. It includes a workspace-scoped service registry domain, server-side service validation, local seed data, credentials-based demo authentication, Owner/Admin/Viewer permissions, a protected health-check runner, persisted health-check evidence, and a data-driven monitoring dashboard UI.
 
-Authentication, scheduled checks, incidents, deployment integrations, notifications, and external monitoring integrations are not built yet.
+Scheduled checks, incidents, deployment integrations, notifications, external monitoring integrations, invitations, password reset, OAuth, SSO, MFA, and billing are not built yet.
 
 ## Local Setup
 
@@ -27,12 +27,18 @@ For local Docker Compose usage, Prisma commands run from the host use `localhost
 | Variable | Purpose |
 | --- | --- |
 | `DATABASE_URL` | PostgreSQL connection string used by Prisma and `/api/health`. |
-| `AUTH_SECRET` | Placeholder for future auth/session signing. |
-| `INTERNAL_HEALTH_CHECK_SECRET` | Placeholder for future protected internal check runner. |
+| `AUTH_SECRET` | Local secret material reserved for auth/session configuration. Generate a unique value per environment. |
+| `INTERNAL_HEALTH_CHECK_SECRET` | Secret required by the protected internal health-check runner route. |
 | `NODE_ENV` | `development`, `test`, or `production`. |
 | `APP_VERSION` | Optional application version reported by `/api/health`. |
 | `HEALTH_CHECK_LOCAL_ALLOWLIST_ENABLED` | Enables local-only health-check targets when set to `true` with `APP_VERSION=local`. |
 | `HEALTH_CHECK_LOCAL_ALLOWED_TARGETS` | Comma-separated `host:port` allowlist for local development checks such as `localhost:3000`. Production checks still reject local and private targets. |
+| `DEMO_OWNER_EMAIL` | Email address used when seeding the local Owner account. |
+| `DEMO_OWNER_PASSWORD` | Local-only password used to hash the seeded Owner account. Do not commit it. |
+| `DEMO_ADMIN_EMAIL` | Email address used when seeding the local Admin account. |
+| `DEMO_ADMIN_PASSWORD` | Local-only password used to hash the seeded Admin account. Do not commit it. |
+| `DEMO_VIEWER_EMAIL` | Email address used when seeding the local Viewer account. |
+| `DEMO_VIEWER_PASSWORD` | Local-only password used to hash the seeded Viewer account. Do not commit it. |
 
 ## Docker
 
@@ -74,7 +80,21 @@ Seed the local workspace and services:
 npm run db:seed
 ```
 
-The seed creates the `Portfolio Operations` workspace, a stable local owner membership, the dashboard service, the demo monitored service, and one inactive placeholder service. It does not create health-check history; the protected runner creates real check history.
+The seed creates the `Portfolio Operations` workspace, demo Owner/Admin/Viewer users from local environment values, the dashboard service, the demo monitored service, and one inactive placeholder service. Passwords are hashed before storage; plaintext demo passwords must stay only in local `.env` files. The seed does not create health-check history; the protected runner creates real check history.
+
+## Authentication And Roles
+
+Dashboard routes require a signed-in user. Sign in at `/signin` with one of the locally seeded demo accounts:
+
+| Role | Local demo email source | Access |
+| --- | --- | --- |
+| Owner | `DEMO_OWNER_EMAIL` | Full workspace operator access for current local capabilities. |
+| Admin | `DEMO_ADMIN_EMAIL` | Service management and health-check execution. |
+| Viewer | `DEMO_VIEWER_EMAIL` | Read-only dashboard access. Mutation attempts are denied server-side. |
+
+Use the matching local password from `.env`; the repository intentionally contains only placeholders. Sign out from the sidebar user panel.
+
+Workspace access is resolved on the server from the authenticated session and `WorkspaceMember` rows. Browser-provided workspace IDs, user IDs, or roles are not trusted. Credentials-based demo authentication is suitable for local verification only and is not a complete enterprise identity system.
 
 ## Verification
 

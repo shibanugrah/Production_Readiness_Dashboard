@@ -7,7 +7,7 @@ export default function NotFound() {
     <div className="space-y-4">
       <EmptyState
         title="Service not found"
-        description="The requested page is not available in the trusted local workspace."
+        description="The requested page is not available in the authenticated workspace."
       />
       <Link
         href="/services"

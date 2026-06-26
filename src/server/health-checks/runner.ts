@@ -19,6 +19,9 @@ import {
 } from "@/server/health-checks/types";
 
 export type HealthCheckRunnerClient = HealthCheckPersistenceClient;
+export type RunHealthChecksOptions = ExecuteHealthCheckOptions & {
+  workspaceId?: string;
+};
 
 const defaultClient = prisma as HealthCheckRunnerClient;
 
@@ -36,11 +39,13 @@ function countServiceStatus(
 }
 
 export async function runHealthChecks(
-  client: HealthCheckRunnerClient = defaultClient,
-  options: ExecuteHealthCheckOptions = {},
+  client: HealthCheckRunnerClient | undefined = defaultClient,
+  options: RunHealthChecksOptions = {},
 ) {
+  const runnerClient = client ?? defaultClient;
   const summary = emptyHealthCheckRunSummary();
-  const services = await client.service.findMany({
+  const services = await runnerClient.service.findMany({
+    where: options.workspaceId ? { workspaceId: options.workspaceId } : undefined,
     orderBy: [{ workspaceId: "asc" }, { name: "asc" }],
   });
 
@@ -52,7 +57,7 @@ export async function runHealthChecks(
       continue;
     }
 
-    const lock = await acquireServiceCheckLock(service, client);
+    const lock = await acquireServiceCheckLock(service, runnerClient);
 
     if (!lock) {
       summary.skipped += 1;
@@ -62,13 +67,13 @@ export async function runHealthChecks(
     try {
       const executedCheck = await executeHealthCheck(service, options);
       const classifiedCheck = classifyHealthCheck(service, executedCheck);
-      await persistHealthCheckResult(service, lock, classifiedCheck, client);
+      await persistHealthCheckResult(service, lock, classifiedCheck, runnerClient);
 
       summary.checked += 1;
       countServiceStatus(summary, classifiedCheck.serviceStatus);
     } catch {
       summary.errors += 1;
-      await releaseServiceCheckLock(service, lock, client);
+      await releaseServiceCheckLock(service, lock, runnerClient);
     }
   }
 
