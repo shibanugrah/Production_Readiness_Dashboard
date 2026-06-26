@@ -2,9 +2,9 @@
 
 Production Readiness Dashboard is the foundation for a multi-tenant operational control plane. Its first job is to prove that the app can start reproducibly, validate configuration, connect to PostgreSQL, and expose a safe self-health endpoint.
 
-This repository currently implements Phase 1A. It includes a workspace-scoped service registry domain, server-side service validation, local seed data, the dashboard self-health endpoint, and a development-only demo monitored health endpoint.
+This repository currently implements Phase 1C. It includes a workspace-scoped service registry domain, server-side service validation, local seed data, a protected health-check runner, persisted health-check evidence, and a data-driven monitoring dashboard UI.
 
-Persisted health-check evidence can be created by the protected internal runner route. Dashboard UI, authentication, scheduled checks, and external monitoring integrations are not built yet.
+Authentication, scheduled checks, incidents, deployment integrations, notifications, and external monitoring integrations are not built yet.
 
 ## Local Setup
 
@@ -54,12 +54,6 @@ Stop the stack:
 docker compose down
 ```
 
-Remove the local database volume when you need a clean database:
-
-```bash
-docker compose down -v
-```
-
 ## Database
 
 Generate the Prisma client:
@@ -74,7 +68,7 @@ Run migrations:
 npm run db:migrate
 ```
 
-Seed the local Phase 1A workspace and services:
+Seed the local workspace and services:
 
 ```bash
 npm run db:seed
@@ -94,6 +88,22 @@ npm run db:generate
 npm run db:migrate
 npm run db:seed
 ```
+
+## Dashboard Routes
+
+Implemented routes:
+
+| Route | Data shown |
+| --- | --- |
+| `/` | Overview readiness, active service counts, service cards, recent failed checks, operational-events empty state, and deployment-evidence placeholder. |
+| `/services` | Real service list with filters, current persisted status, latest check latency, last checked, and last healthy timestamps. |
+| `/services/[serviceId]` | Service detail, latest check result, check history, status-history strip, latest failure, and persisted configuration fields. |
+| `/events` | Honest empty state; event ingestion is not connected yet. |
+| `/incidents` | Honest empty state; incident workflow is not connected yet. |
+| `/readiness` | Honest empty state; deployment readiness integration is not connected yet. |
+| `/settings` | Honest empty state; workspace settings and auth are not connected yet. |
+
+Every status, count, latency, failed-check row, and service card is calculated from persisted `Service` and `HealthCheck` rows. Services with no persisted checks are shown as `Unknown`, even if they were created successfully. The dashboard does not fabricate uptime percentages, incident rows, owners, readiness scores, deployment history, or static telemetry.
 
 ## Health Endpoint
 
@@ -174,4 +184,4 @@ To test demo scenarios locally, update the demo service `healthPath` in the data
 /api/demo-service/health?mode=invalid
 ```
 
-Checks are not scheduled automatically yet, and no dashboard table or charts are implemented.
+Checks are not scheduled automatically yet. The dashboard can trigger checks only in local demo mode through a server action that calls the runner server-side; the internal secret is never sent to the browser.
