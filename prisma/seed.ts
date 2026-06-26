@@ -40,7 +40,7 @@ async function main() {
     {
       name: "Production Readiness Dashboard",
       slug: "production-readiness-dashboard",
-      baseUrl: "http://localhost:3000",
+      baseUrl: "http://app:3000",
       healthPath: "/api/health",
       environment: ServiceEnvironment.LOCAL,
       expectedVersion: "local",
@@ -49,7 +49,7 @@ async function main() {
     {
       name: "Demo Monitored Service",
       slug: "demo-monitored-service",
-      baseUrl: "http://localhost:3000",
+      baseUrl: "http://app:3000",
       healthPath: "/api/demo-service/health",
       environment: ServiceEnvironment.LOCAL,
       expectedVersion: "local-demo",
@@ -58,7 +58,7 @@ async function main() {
     {
       name: "Inactive Placeholder Service",
       slug: "inactive-placeholder-service",
-      baseUrl: "http://localhost:3000",
+      baseUrl: "http://app:3000",
       healthPath: "/api/demo-service/health",
       environment: ServiceEnvironment.LOCAL,
       expectedVersion: null,

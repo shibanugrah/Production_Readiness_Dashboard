@@ -4,7 +4,7 @@ Production Readiness Dashboard is the foundation for a multi-tenant operational 
 
 This repository currently implements Phase 1A. It includes a workspace-scoped service registry domain, server-side service validation, local seed data, the dashboard self-health endpoint, and a development-only demo monitored health endpoint.
 
-Automatic health checks, persisted check history, dashboard UI, authentication, and external monitoring integrations are not built yet.
+Persisted health-check evidence can be created by the protected internal runner route. Dashboard UI, authentication, scheduled checks, and external monitoring integrations are not built yet.
 
 ## Local Setup
 
@@ -31,6 +31,8 @@ For local Docker Compose usage, Prisma commands run from the host use `localhost
 | `INTERNAL_HEALTH_CHECK_SECRET` | Placeholder for future protected internal check runner. |
 | `NODE_ENV` | `development`, `test`, or `production`. |
 | `APP_VERSION` | Optional application version reported by `/api/health`. |
+| `HEALTH_CHECK_LOCAL_ALLOWLIST_ENABLED` | Enables local-only health-check targets when set to `true` with `APP_VERSION=local`. |
+| `HEALTH_CHECK_LOCAL_ALLOWED_TARGETS` | Comma-separated `host:port` allowlist for local development checks such as `localhost:3000`. Production checks still reject local and private targets. |
 
 ## Docker
 
@@ -78,7 +80,7 @@ Seed the local Phase 1A workspace and services:
 npm run db:seed
 ```
 
-The seed creates the `Portfolio Operations` workspace, a stable local owner membership, the dashboard service, the demo monitored service, and one inactive placeholder service. It does not create health-check history; real check execution and persistence belong to a future runner task.
+The seed creates the `Portfolio Operations` workspace, a stable local owner membership, the dashboard service, the demo monitored service, and one inactive placeholder service. It does not create health-check history; the protected runner creates real check history.
 
 ## Verification
 
@@ -142,3 +144,34 @@ Modes:
 | `invalid` | HTTP 200 with an invalid health payload that does not contain `status: "ok"`. |
 
 Unsupported modes return HTTP 400. In production mode, controllable demo modes are disabled.
+
+## Run A Health-Check Cycle Locally
+
+The internal runner is protected by `INTERNAL_HEALTH_CHECK_SECRET`. Use the value already in your local `.env`; do not print or commit it.
+
+From PowerShell, after `docker compose up --build -d`, you can load the local secret into memory and call the runner:
+
+```powershell
+$secret = (Get-Content .env | Where-Object { $_ -match '^INTERNAL_HEALTH_CHECK_SECRET=' }) -replace '^INTERNAL_HEALTH_CHECK_SECRET="?([^"]+)"?$', '$1'
+curl.exe -X POST http://localhost:3000/api/internal/health-checks/run -H "x-internal-health-check-secret: $secret"
+```
+
+The route runs checks for stored services. Active services create `HealthCheck` rows and update their current `Service.status`; inactive services are skipped. Historical failures remain after later recovery.
+
+To test demo scenarios locally, update the demo service `healthPath` in the database, run the protected route again, then restore it:
+
+```powershell
+# healthy
+/api/demo-service/health?mode=healthy
+
+# slow/degraded
+/api/demo-service/health?mode=slow
+
+# down/failure
+/api/demo-service/health?mode=down
+
+# invalid payload/failure
+/api/demo-service/health?mode=invalid
+```
+
+Checks are not scheduled automatically yet, and no dashboard table or charts are implemented.

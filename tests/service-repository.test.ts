@@ -96,6 +96,10 @@ class FakeServiceClient implements ServiceRepositoryClient {
       expectedVersion: input.expectedVersion ?? null,
       status: input.status,
       isActive: true,
+      lastCheckedAt: null,
+      lastHealthyAt: null,
+      checkLockToken: null,
+      checkLockExpiresAt: null,
       createdAt: now,
       updatedAt: now,
     };

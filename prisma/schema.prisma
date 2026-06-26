@@ -91,6 +91,10 @@ model Service {
   expectedVersion   String?
   status            ServiceStatus       @default(UNKNOWN)
   isActive          Boolean             @default(true)
+  lastCheckedAt     DateTime?
+  lastHealthyAt     DateTime?
+  checkLockToken    String?
+  checkLockExpiresAt DateTime?
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
   workspace         Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -99,16 +103,19 @@ model Service {
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, status])
+  @@index([checkLockExpiresAt])
 }
 
 model HealthCheck {
   id             String            @id @default(cuid())
+  requestId      String            @unique
   workspaceId    String
   serviceId      String
   status         HealthCheckStatus
   httpStatus     Int?
   responseTimeMs Int?
   observedVersion String?
+  migrationVersion String?
   message        String?
   checkedAt      DateTime          @default(now())
   createdAt      DateTime          @default(now())
