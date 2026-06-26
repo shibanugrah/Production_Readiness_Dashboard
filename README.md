@@ -2,7 +2,9 @@
 
 Production Readiness Dashboard is the foundation for a multi-tenant operational control plane. Its first job is to prove that the app can start reproducibly, validate configuration, connect to PostgreSQL, and expose a safe self-health endpoint.
 
-This repository currently implements Phase 0 only. Monitoring services, workspace auth, service registry, dashboard modules, and telemetry history are not built yet.
+This repository currently implements Phase 1A. It includes a workspace-scoped service registry domain, server-side service validation, local seed data, the dashboard self-health endpoint, and a development-only demo monitored health endpoint.
+
+Automatic health checks, persisted check history, dashboard UI, authentication, and external monitoring integrations are not built yet.
 
 ## Local Setup
 
@@ -18,7 +20,7 @@ Copy the environment template and fill in local values:
 cp .env.example .env
 ```
 
-For local Docker Compose usage, the application container receives development-safe values from `docker-compose.yml`. Do not commit real secrets.
+For local Docker Compose usage, Prisma commands run from the host use `localhost` in `DATABASE_URL`. The application container receives values from `.env`, and Docker Compose overrides only the database hostname so the container can reach the `postgres` service. Do not commit real secrets.
 
 ## Environment Variables
 
@@ -70,13 +72,13 @@ Run migrations:
 npm run db:migrate
 ```
 
-Run the Phase 0 seed placeholder:
+Seed the local Phase 1A workspace and services:
 
 ```bash
 npm run db:seed
 ```
 
-Phase 0 intentionally does not create dashboard domain tables. The self-health endpoint verifies database connectivity with a safe `SELECT 1`.
+The seed creates the `Portfolio Operations` workspace, a stable local owner membership, the dashboard service, the demo monitored service, and one inactive placeholder service. It does not create health-check history; real check execution and persistence belong to a future runner task.
 
 ## Verification
 
@@ -87,6 +89,8 @@ npm run lint
 npm run typecheck
 npm run test
 npm run db:generate
+npm run db:migrate
+npm run db:seed
 ```
 
 ## Health Endpoint
@@ -116,3 +120,25 @@ When configuration validation or database connectivity fails, it returns HTTP 50
 ```
 
 The health response does not expose secrets, stack traces, connection strings, or internal database details.
+
+## Demo Monitored Endpoint
+
+`GET /api/demo-service/health` is available for local development. Docker Compose enables it with `DEMO_SERVICE_HEALTH_ENABLED=true` so the standalone app can simulate the response shapes the future runner will observe:
+
+```bash
+curl "http://localhost:3000/api/demo-service/health?mode=healthy"
+curl "http://localhost:3000/api/demo-service/health?mode=slow"
+curl "http://localhost:3000/api/demo-service/health?mode=down"
+curl "http://localhost:3000/api/demo-service/health?mode=invalid"
+```
+
+Modes:
+
+| Mode | Result |
+| --- | --- |
+| `healthy` | HTTP 200 with valid health JSON and `status: "ok"`. |
+| `slow` | Waits about 2 seconds, then returns the valid health JSON. |
+| `down` | HTTP 503 with a safe JSON error response. |
+| `invalid` | HTTP 200 with an invalid health payload that does not contain `status: "ok"`. |
+
+Unsupported modes return HTTP 400. In production mode, controllable demo modes are disabled.
