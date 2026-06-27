@@ -42,7 +42,7 @@ For local Docker Compose usage, Prisma commands run from the host use `localhost
 
 ## Docker
 
-For a clean local Docker verification, start PostgreSQL first, apply the checked-in migrations from the host, seed local data, then start the full stack:
+For a clean local Docker verification, start PostgreSQL first, apply the checked-in migrations from the host, seed local data, then start the full stack. The app container uses production-safe runtime settings for `/api/health`; local/private health-check target allowlists and controllable demo health modes remain for non-container local development only.
 
 ```powershell
 docker compose up -d postgres
@@ -124,6 +124,25 @@ npm run typecheck
 npm run test
 ```
 
+## Production Deployment Baseline
+
+This repository is ready for a provider-neutral deployment review, but it does not deploy itself. Public deployment still requires a managed PostgreSQL database, a hosting provider, production secrets, HTTPS at the provider edge, and an explicit one-time decision about whether demo seed data should exist in production.
+
+Create production configuration from `.env.production.example` in the chosen provider's secret store. Do not commit real values. Before release, run:
+
+```powershell
+npm run deploy:check
+npm run db:generate
+npm run db:migrate
+npm run db:migrate:status
+```
+
+`npm run deploy:check` validates the production configuration contract, Prisma artifacts, apply-only migration scripts, and Docker production image build. It does not deploy, apply migrations, seed data, call external services, or require cloud credentials.
+
+Use `npm run db:migrate` for deployment migrations. Do not use `db:migrate:dev` or `prisma db push` in production. `npm run db:seed` is only for explicit first-time demo initialization after deciding that seeded demo accounts should exist publicly; it must not run automatically in CI, Docker startup, or every deployment.
+
+See `docs/runbooks/production-deployment.md` for the full release order, production checks, migration safety, seed-data policy, scheduler policy, rollback, and incident response.
+
 ## Dashboard Routes
 
 Implemented routes:
@@ -135,8 +154,8 @@ Implemented routes:
 | `/services/[serviceId]` | Service detail, latest check result, check history, status-history strip, latest failure, and persisted configuration fields. |
 | `/events` | Real workspace-scoped operational events, filters, summary counts, linked services, safe payload detail, and Owner/Admin triage controls from persisted `OperationalEvent` rows. |
 | `/incidents` | Real incidents manually created from operational events, filters, summary counts, source-event links, resolution notes, and audit timeline evidence. |
-| `/readiness` | Honest empty state; deployment readiness integration is not connected yet. |
-| `/settings` | Honest empty state; workspace settings and auth are not connected yet. |
+| `/readiness` | Honest deployment-readiness evidence and unavailable integration states. |
+| `/settings` | Scheduler evidence, event ingestion key management, workspace audit activity, and explicit unavailable settings capabilities. |
 
 Every status, count, latency, failed-check row, run summary, operational-event row, incident row, and service card is calculated from persisted `Service`, `HealthCheckRun`, `HealthCheck`, `OperationalEvent`, and `Incident` rows. Services with no persisted checks are shown as `Unknown`, even if they were created successfully. The dashboard does not fabricate uptime percentages, owners, readiness scores, deployment history, scheduler status, event source activity, incident activity, or static telemetry.
 
@@ -172,7 +191,7 @@ The health response does not expose secrets, stack traces, connection strings, o
 
 ## Demo Monitored Endpoint
 
-`GET /api/demo-service/health` is available for local development. Docker Compose enables it with `DEMO_SERVICE_HEALTH_ENABLED=true` so the standalone app can simulate the response shapes the future runner will observe:
+`GET /api/demo-service/health` is available for non-container local development. Set `DEMO_SERVICE_HEALTH_ENABLED=true` with local development settings to simulate the response shapes the runner can observe:
 
 ```bash
 curl "http://localhost:3000/api/demo-service/health?mode=healthy"

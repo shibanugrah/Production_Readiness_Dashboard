@@ -37,4 +37,75 @@ describe("environment validation", () => {
       } as unknown as NodeJS.ProcessEnv),
     ).toThrow();
   });
+
+  it("rejects production local allowlist configuration", () => {
+    expect(() =>
+      validateEnv({
+        ...validProductionEnv,
+        HEALTH_CHECK_LOCAL_ALLOWLIST_ENABLED: "true",
+      }),
+    ).toThrow(/HEALTH_CHECK_LOCAL_ALLOWLIST_ENABLED/);
+
+    expect(() =>
+      validateEnv({
+        ...validProductionEnv,
+        HEALTH_CHECK_LOCAL_ALLOWED_TARGETS: "localhost:3000",
+      }),
+    ).toThrow(/HEALTH_CHECK_LOCAL_ALLOWED_TARGETS/);
+  });
+
+  it("rejects local app version in production", () => {
+    expect(() =>
+      validateEnv({
+        ...validProductionEnv,
+        APP_VERSION: "local",
+      }),
+    ).toThrow(/APP_VERSION/);
+  });
+
+  it("rejects placeholder or weak production secrets", () => {
+    expect(() =>
+      validateEnv({
+        ...validProductionEnv,
+        AUTH_SECRET: "replace-with-a-generated-secret",
+      }),
+    ).toThrow(/AUTH_SECRET/);
+
+    expect(() =>
+      validateEnv({
+        ...validProductionEnv,
+        INTERNAL_HEALTH_CHECK_SECRET: "short",
+      }),
+    ).toThrow(/INTERNAL_HEALTH_CHECK_SECRET/);
+  });
+
+  it("rejects development demo health controls in production", () => {
+    expect(() =>
+      validateEnv({
+        ...validProductionEnv,
+        DEMO_SERVICE_HEALTH_ENABLED: "true",
+      }),
+    ).toThrow(/DEMO_SERVICE_HEALTH_ENABLED/);
+  });
+
+  it("accepts valid production values without exposing them", () => {
+    expect(validateEnv(validProductionEnv)).toMatchObject({
+      NODE_ENV: "production",
+      APP_VERSION: "2026.06.27-test-build",
+      HEALTH_CHECK_LOCAL_ALLOWLIST_ENABLED: "false",
+      DEMO_SERVICE_HEALTH_ENABLED: "false",
+    });
+  });
 });
+
+const validProductionEnv = {
+  DATABASE_URL:
+    "postgresql://prod_user:prod_password@db.example.invalid:5432/production_readiness_dashboard?schema=public",
+  AUTH_SECRET: "prod-auth-value-0123456789abcdef1234",
+  INTERNAL_HEALTH_CHECK_SECRET: "prod-internal-value-0123456789abcdef",
+  NODE_ENV: "production",
+  APP_VERSION: "2026.06.27-test-build",
+  HEALTH_CHECK_LOCAL_ALLOWLIST_ENABLED: "false",
+  HEALTH_CHECK_LOCAL_ALLOWED_TARGETS: "",
+  DEMO_SERVICE_HEALTH_ENABLED: "false",
+} as NodeJS.ProcessEnv;

@@ -15,6 +15,20 @@ describe("Prisma migration script contract", () => {
     expect(packageJson.scripts["db:migrate"]).toBe("prisma migrate deploy");
     expect(packageJson.scripts["db:migrate:dev"]).toBe("prisma migrate dev");
     expect(packageJson.scripts["db:migrate:status"]).toBe("prisma migrate status");
+    expect(packageJson.scripts["deploy:check"]).toBe("tsx scripts/deploy-check.ts");
+  });
+
+  it("keeps deploy:check non-mutating and out of migration creation paths", () => {
+    const deployCheckScript = packageJson.scripts["deploy:check"];
+    const deployCheckSource = readFileSync(
+      path.join(root, "scripts", "deploy-check.ts"),
+      "utf8",
+    );
+
+    expect(deployCheckScript).not.toMatch(/migrate|seed|db push|reset/i);
+    expect(deployCheckSource).not.toMatch(/execFileSync\(\s*["'](?:npx|prisma)/i);
+    expect(deployCheckSource).not.toMatch(/execFileSync\([^)]*db:seed/i);
+    expect(deployCheckSource).not.toMatch(/execFileSync\([^)]*migrate/i);
   });
 
   it("documents the checked-in migration workflow without db push", () => {

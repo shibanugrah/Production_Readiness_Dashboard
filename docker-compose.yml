@@ -28,9 +28,10 @@ services:
       - .env
     environment:
       DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/production_readiness_dashboard?schema=public"
-      DEMO_SERVICE_HEALTH_ENABLED: "true"
-      HEALTH_CHECK_LOCAL_ALLOWLIST_ENABLED: "true"
-      HEALTH_CHECK_LOCAL_ALLOWED_TARGETS: "app:3000"
+      APP_VERSION: "docker-local"
+      DEMO_SERVICE_HEALTH_ENABLED: "false"
+      HEALTH_CHECK_LOCAL_ALLOWLIST_ENABLED: "false"
+      HEALTH_CHECK_LOCAL_ALLOWED_TARGETS: ""
     ports:
       - "3000:3000"
 
