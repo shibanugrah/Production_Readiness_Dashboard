@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
@@ -26,9 +26,18 @@ vi.mock("@/server/db", () => ({
 
 import { signInAction, signOutAction } from "@/server/auth/actions";
 import { prisma } from "@/server/db";
-import { destroyCurrentSession } from "@/server/auth/session";
+import {
+  createSession,
+  destroyCurrentSession,
+  setSessionCookie,
+} from "@/server/auth/session";
+import { verifyPassword } from "@/server/auth/password";
 
 describe("auth actions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("destroys the current session on sign out", async () => {
     await expect(signOutAction()).rejects.toThrow(
       "NEXT_REDIRECT:/signin?signedOut=1",
@@ -47,6 +56,35 @@ describe("auth actions", () => {
 
     await expect(signInAction(formData)).rejects.toThrow(
       "NEXT_REDIRECT:/signin?error=unavailable&returnPath=%2Fservices",
+    );
+  });
+
+  it("sets a fresh session cookie after successful sign-in", async () => {
+    const expiresAt = new Date(Date.now() + 60_000);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: "user_1",
+      name: "Demo Owner",
+      email: "owner@example.local",
+      passwordHash: "hash",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    vi.mocked(verifyPassword).mockResolvedValue(true);
+    vi.mocked(createSession).mockResolvedValue({
+      token: "fresh-session-token",
+      expiresAt,
+    });
+    const formData = new FormData();
+    formData.set("email", "owner@example.local");
+    formData.set("password", "password");
+    formData.set("returnPath", "/services");
+
+    await expect(signInAction(formData)).rejects.toThrow(
+      "NEXT_REDIRECT:/services",
+    );
+    expect(setSessionCookie).toHaveBeenCalledWith(
+      "fresh-session-token",
+      expiresAt,
     );
   });
 });
