@@ -1,5 +1,6 @@
 import {
   HealthCheck,
+  HealthCheckRun,
   HealthCheckRunStatus,
   HealthCheckRunTriggerType,
   HealthCheckStatus,
@@ -63,6 +64,26 @@ export type RecentFailedCheck = Pick<
   | "checkedAt"
 > & {
   service: Pick<Service, "id" | "name" | "slug" | "environment">;
+};
+
+export type SchedulerRunEvidence = Pick<
+  HealthCheckRun,
+  | "status"
+  | "startedAt"
+  | "finishedAt"
+  | "checkedCount"
+  | "healthyCount"
+  | "degradedCount"
+  | "downCount"
+  | "skippedCount"
+  | "errorCount"
+  | "errorMessage"
+>;
+
+export type SchedulerMonitoringState = {
+  kind: "not-configured" | "active" | "attention" | "skipped" | "running";
+  label: string;
+  tone: "slate" | "green" | "amber" | "rose" | "blue";
 };
 
 export type DashboardServiceRow = ServiceWithLatestCheck & {
@@ -133,6 +154,49 @@ export function toDashboardServiceRow(
     ...service,
     displayStatus: getDisplayServiceStatus(service),
     latestCheck: service.healthChecks[0] ?? null,
+  };
+}
+
+export function getSchedulerMonitoringState(
+  latestScheduledRun: SchedulerRunEvidence | null,
+  relativeStartedAt = "",
+): SchedulerMonitoringState {
+  if (!latestScheduledRun) {
+    return {
+      kind: "not-configured",
+      label: "Not configured — no scheduled run evidence yet",
+      tone: "slate",
+    };
+  }
+
+  if (latestScheduledRun.status === HealthCheckRunStatus.COMPLETED) {
+    return {
+      kind: "active",
+      label: `Active — last scheduled run ${relativeStartedAt}`.trim(),
+      tone: "green",
+    };
+  }
+
+  if (latestScheduledRun.status === HealthCheckRunStatus.FAILED) {
+    return {
+      kind: "attention",
+      label: "Attention required — latest scheduled run failed",
+      tone: "rose",
+    };
+  }
+
+  if (latestScheduledRun.status === HealthCheckRunStatus.SKIPPED) {
+    return {
+      kind: "skipped",
+      label: "Skipped — another run was active",
+      tone: "amber",
+    };
+  }
+
+  return {
+    kind: "running",
+    label: "Running — scheduled run in progress",
+    tone: "blue",
   };
 }
 
@@ -376,30 +440,40 @@ export async function getSettingsReadModel() {
     return null;
   }
 
-  const auditLogs = await prisma.auditLog.findMany({
-    where: {
-      workspaceId: dashboard.context.workspaceId,
-      resourceType: "SERVICE",
-      action: { in: serviceAuditActionValues },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-    include: {
-      actorUser: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
+  const [auditLogs, latestScheduledRun] = await Promise.all([
+    prisma.auditLog.findMany({
+      where: {
+        workspaceId: dashboard.context.workspaceId,
+        resourceType: "SERVICE",
+        action: { in: serviceAuditActionValues },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      include: {
+        actorUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.healthCheckRun.findFirst({
+      where: {
+        workspaceId: dashboard.context.workspaceId,
+        triggerType: HealthCheckRunTriggerType.SCHEDULED,
+      },
+      orderBy: { startedAt: "desc" },
+    }),
+  ]);
 
   return {
     workspace: dashboard.workspace,
     user: dashboard.context.user,
     role: dashboard.context.role,
     auditLogs,
+    latestScheduledRun,
   };
 }
 

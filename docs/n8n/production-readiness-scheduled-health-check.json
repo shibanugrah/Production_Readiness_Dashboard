@@ -1,0 +1,391 @@
+{
+  "name": "Production Readiness Scheduled Health Check",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "schedule-every-five-minutes",
+      "name": "Schedule Trigger - Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -700,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.PRODUCTION_READINESS_DASHBOARD_BASE_URL.replace(/\\/$/, '') + '/api/internal/health-checks/scheduled-run'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-internal-health-check-secret",
+              "value": "={{$env.PRODUCTION_READINESS_INTERNAL_HEALTH_CHECK_SECRET}}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "post-scheduled-run",
+      "name": "POST Scheduled Health-Check Run",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -460,
+        0
+      ],
+      "continueOnFail": true,
+      "notes": "Use n8n environment variables or credentials for the base URL and internal secret. Do not paste secret values into this node."
+    },
+    {
+      "parameters": {
+        "jsCode": "const statusCode = Number($json.statusCode ?? $json.status ?? 0);\nlet category = 'retry_worthy_failure';\nlet operatorMessage = 'Network or server failure; allow normal scheduler retry behavior.';\n\nif (statusCode >= 200 && statusCode < 300) {\n  category = 'normal_completion';\n  operatorMessage = 'Scheduled health-check run completed.';\n} else if (statusCode === 409) {\n  category = 'safe_overlap';\n  operatorMessage = 'Another workspace run was active; wait for the next interval.';\n} else if (statusCode === 401 || statusCode === 403) {\n  category = 'configuration_failure';\n  operatorMessage = 'Internal secret is missing or invalid; review n8n credentials.';\n} else if (statusCode >= 500 || statusCode === 0) {\n  category = 'retry_worthy_failure';\n}\n\nreturn [{ json: { ...$json, statusCode, category, operatorMessage } }];"
+      },
+      "id": "classify-response",
+      "name": "Classify Scheduler Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.category}}",
+              "rightValue": "configuration_failure",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "is-configuration-failure",
+      "name": "401 or 403 Configuration Failure?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        20,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "operator-message",
+              "name": "operatorMessage",
+              "type": "string",
+              "value": "={{$json.operatorMessage}}"
+            },
+            {
+              "id": "status-code",
+              "name": "statusCode",
+              "type": "number",
+              "value": "={{$json.statusCode}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-configuration-failure",
+      "name": "Log Configuration Failure",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        260,
+        -180
+      ],
+      "notes": "Route this output to your operator alerting or workflow execution log."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.category}}",
+              "rightValue": "retry_worthy_failure",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "is-retry-worthy",
+      "name": "5xx or Network Failure?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        260,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "operator-message",
+              "name": "operatorMessage",
+              "type": "string",
+              "value": "={{$json.operatorMessage}}"
+            },
+            {
+              "id": "status-code",
+              "name": "statusCode",
+              "type": "number",
+              "value": "={{$json.statusCode}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-retry-worthy-failure",
+      "name": "Log Retry-Worthy Failure",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        500,
+        -40
+      ],
+      "notes": "Let n8n retry according to workflow policy or review this output manually."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.category}}",
+              "rightValue": "safe_overlap",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "is-safe-overlap",
+      "name": "409 Safe Overlap?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        500,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "operator-message",
+              "name": "operatorMessage",
+              "type": "string",
+              "value": "={{$json.operatorMessage}}"
+            },
+            {
+              "id": "status-code",
+              "name": "statusCode",
+              "type": "number",
+              "value": "={{$json.statusCode}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-safe-overlap",
+      "name": "Log Safe Overlap",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        740,
+        80
+      ],
+      "notes": "Do not retry immediately; the next scheduled interval is safe."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "operator-message",
+              "name": "operatorMessage",
+              "type": "string",
+              "value": "={{$json.operatorMessage}}"
+            },
+            {
+              "id": "status-code",
+              "name": "statusCode",
+              "type": "number",
+              "value": "={{$json.statusCode}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-normal-completion",
+      "name": "Log Normal Completion",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        740,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger - Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "POST Scheduled Health-Check Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST Scheduled Health-Check Run": {
+      "main": [
+        [
+          {
+            "node": "Classify Scheduler Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Scheduler Response": {
+      "main": [
+        [
+          {
+            "node": "401 or 403 Configuration Failure?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "401 or 403 Configuration Failure?": {
+      "main": [
+        [
+          {
+            "node": "Log Configuration Failure",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "5xx or Network Failure?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5xx or Network Failure?": {
+      "main": [
+        [
+          {
+            "node": "Log Retry-Worthy Failure",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "409 Safe Overlap?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "409 Safe Overlap?": {
+      "main": [
+        [
+          {
+            "node": "Log Safe Overlap",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Normal Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "UTC"
+  },
+  "pinData": {},
+  "staticData": null,
+  "tags": [
+    {
+      "name": "production-readiness"
+    },
+    {
+      "name": "health-checks"
+    }
+  ],
+  "meta": {
+    "templatePurpose": "Call the Production Readiness Dashboard scheduled health-check endpoint every 5 minutes.",
+    "responsePolicy": {
+      "2xx": "normal completion",
+      "409": "safe overlap; do not retry immediately",
+      "401_403": "configuration or security failure",
+      "5xx_network": "retry-worthy failure"
+    },
+    "secretHandling": "Use n8n environment variables or credentials. Do not store real secrets in this workflow JSON."
+  }
+}

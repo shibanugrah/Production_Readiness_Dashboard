@@ -10,6 +10,7 @@ import {
   calculateStatusCounts,
   getDisplayServiceStatus,
   getOverviewSummary,
+  getSchedulerMonitoringState,
   getServiceDetailReadModel,
   ServiceWithLatestCheck,
 } from "@/server/dashboard/read-models";
@@ -65,6 +66,27 @@ function serviceFixture(
           },
         ]
       : [],
+  };
+}
+
+function scheduledRunFixture(status: HealthCheckRunStatus) {
+  return {
+    id: "scheduled_run_1",
+    workspaceId: "workspace_a",
+    triggerType: HealthCheckRunTriggerType.SCHEDULED,
+    status,
+    requestedByUserId: null,
+    startedAt: new Date("2026-06-26T00:00:00.000Z"),
+    finishedAt: new Date("2026-06-26T00:00:05.000Z"),
+    checkedCount: 2,
+    healthyCount: 1,
+    degradedCount: 0,
+    downCount: 1,
+    skippedCount: 0,
+    errorCount: 0,
+    errorMessage: status === HealthCheckRunStatus.FAILED ? "runner failed" : null,
+    createdAt: new Date("2026-06-26T00:00:00.000Z"),
+    updatedAt: new Date("2026-06-26T00:00:05.000Z"),
   };
 }
 
@@ -247,5 +269,38 @@ describe("dashboard read model calculations", () => {
         where: { workspaceId: "workspace_a" },
       }),
     );
+  });
+
+  it("renders scheduler evidence as not configured without a scheduled run", () => {
+    expect(getSchedulerMonitoringState(null).label).toBe(
+      "Not configured — no scheduled run evidence yet",
+    );
+  });
+
+  it("renders scheduler evidence as active only after a completed scheduled run", () => {
+    expect(
+      getSchedulerMonitoringState(
+        scheduledRunFixture(HealthCheckRunStatus.COMPLETED),
+        "2 minutes ago",
+      ).label,
+    ).toBe("Active — last scheduled run 2 minutes ago");
+  });
+
+  it("renders failed scheduled runs as attention required", () => {
+    expect(
+      getSchedulerMonitoringState(
+        scheduledRunFixture(HealthCheckRunStatus.FAILED),
+        "2 minutes ago",
+      ).label,
+    ).toBe("Attention required — latest scheduled run failed");
+  });
+
+  it("renders skipped scheduled runs as overlap-safe", () => {
+    expect(
+      getSchedulerMonitoringState(
+        scheduledRunFixture(HealthCheckRunStatus.SKIPPED),
+        "2 minutes ago",
+      ).label,
+    ).toBe("Skipped — another run was active");
   });
 });

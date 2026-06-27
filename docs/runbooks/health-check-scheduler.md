@@ -47,13 +47,25 @@ Use normal scheduler retry behavior for transient network or `5xx` failures. A `
 
 ## n8n-Ready Setup
 
-An n8n workflow can be configured later without changing application code:
+An importable n8n workflow template is available at:
+
+```text
+docs/n8n/production-readiness-scheduled-health-check.json
+```
+
+Detailed setup instructions are available at:
+
+```text
+docs/runbooks/n8n-scheduled-health-check-setup.md
+```
+
+The workflow can be configured later without changing application code:
 
 1. Add a Schedule Trigger node for every 5 minutes.
 2. Add an HTTP Request node.
 3. Set the method to `POST`.
 4. Set the URL to the deployed app endpoint ending in `/api/internal/health-checks/scheduled-run`.
-5. Store `INTERNAL_HEALTH_CHECK_SECRET` in n8n credentials.
+5. Store `INTERNAL_HEALTH_CHECK_SECRET` in n8n credentials or protected n8n environment variables.
 6. Configure the HTTP Request node to send the credential value as `x-internal-health-check-secret`.
 7. Log non-`2xx` results for operator review.
 

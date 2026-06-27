@@ -20,7 +20,10 @@ import { ServiceStatusCard } from "@/components/dashboard/service-components";
 import { CheckResultBadge } from "@/components/dashboard/status";
 import { canRunChecks } from "@/server/auth/permissions";
 import { isLocalDemoActionsEnabled } from "@/server/dashboard/local-demo";
-import { getOverviewSummary } from "@/server/dashboard/read-models";
+import {
+  getOverviewSummary,
+  getSchedulerMonitoringState,
+} from "@/server/dashboard/read-models";
 
 export default async function OverviewPage({
   searchParams,
@@ -44,6 +47,19 @@ export default async function OverviewPage({
   const checksResult =
     typeof params.checks === "string" ? params.checks : undefined;
   const lastRun = summary.recentHealthCheckRuns[0] ?? null;
+  const schedulerState = getSchedulerMonitoringState(
+    summary.latestScheduledRun,
+    summary.latestScheduledRun
+      ? formatRelativeTime(summary.latestScheduledRun.startedAt)
+      : undefined,
+  );
+  const schedulerToneClasses = {
+    slate: "border-slate-200 bg-slate-50 text-slate-700",
+    green: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    amber: "border-amber-200 bg-amber-50 text-amber-700",
+    rose: "border-rose-200 bg-rose-50 text-rose-700",
+    blue: "border-blue-200 bg-blue-50 text-blue-700",
+  };
 
   return (
     <AuthenticatedShell>
@@ -141,11 +157,21 @@ export default async function OverviewPage({
               description="Manual runs will appear here after an Owner or Admin runs local checks."
             />
           )}
-          {!summary.latestScheduledRun ? (
-            <p className="mt-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600">
-              Scheduled checks are not configured yet.
+          <div className={`mt-4 rounded-md border px-3 py-2 ${schedulerToneClasses[schedulerState.tone]}`}>
+            <p className="text-xs font-semibold uppercase tracking-[0.04em]">
+              Scheduled monitoring
             </p>
-          ) : null}
+            <p className="mt-1 text-sm font-semibold">{schedulerState.label}</p>
+            {summary.latestScheduledRun ? (
+              <p className="mt-1 text-xs font-medium">
+                Checked {summary.latestScheduledRun.checkedCount}, Healthy{" "}
+                {summary.latestScheduledRun.healthyCount}, Degraded{" "}
+                {summary.latestScheduledRun.degradedCount}, Down{" "}
+                {summary.latestScheduledRun.downCount}, Skipped{" "}
+                {summary.latestScheduledRun.skippedCount}
+              </p>
+            ) : null}
+          </div>
         </Panel>
 
         {summary.services.length === 0 ? (

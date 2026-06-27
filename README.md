@@ -4,7 +4,7 @@ Production Readiness Dashboard is the foundation for a multi-tenant operational 
 
 This repository currently implements session-backed workspace access for the Phase 1 dashboard. It includes a workspace-scoped service registry domain, server-side service validation, local seed data, credentials-based demo authentication, Owner/Admin/Viewer permissions, a protected health-check runner, persisted health-check run history, service audit logs, and a data-driven monitoring dashboard UI.
 
-An external scheduler can call the protected scheduled-run endpoint, but no scheduler is configured by default. Incidents, deployment integrations, notifications, external monitoring integrations, invitations, password reset, OAuth, SSO, MFA, and billing are not built yet.
+An external scheduler such as n8n can call the protected scheduled-run endpoint, but no scheduler is configured by default. Incidents, deployment integrations, notifications, external monitoring integrations, invitations, password reset, OAuth, SSO, MFA, and billing are not built yet.
 
 ## Local Setup
 
@@ -125,6 +125,8 @@ Implemented routes:
 
 Every status, count, latency, failed-check row, run summary, and service card is calculated from persisted `Service`, `HealthCheckRun`, and `HealthCheck` rows. Services with no persisted checks are shown as `Unknown`, even if they were created successfully. The dashboard does not fabricate uptime percentages, incident rows, owners, readiness scores, deployment history, scheduler status, or static telemetry.
 
+Scheduled monitoring status is evidence-based. Overview and Settings show n8n scheduling as active only after a real persisted `SCHEDULED` `HealthCheckRun` exists for the signed-in workspace.
+
 ## Health Endpoint
 
 `GET /api/health` returns HTTP 200 when the app is configured and PostgreSQL is reachable:
@@ -206,7 +208,18 @@ To test demo scenarios locally, update the demo service `healthPath` in the data
 /api/demo-service/health?mode=invalid
 ```
 
-Checks are not scheduled automatically yet. The local demo uses manual runs by default, and production scheduling requires an external scheduler to call the protected scheduled-run endpoint. See `docs/runbooks/health-check-scheduler.md` for the scheduler-ready contract and an n8n-ready approach. The internal secret is never sent to the browser.
+Checks are not scheduled automatically yet. The local demo uses manual runs by default, and production scheduling requires an external scheduler to call the protected scheduled-run endpoint. An importable n8n template lives at `docs/n8n/production-readiness-scheduled-health-check.json`, with setup steps in `docs/runbooks/n8n-scheduled-health-check-setup.md` and endpoint behavior in `docs/runbooks/health-check-scheduler.md`. The internal secret is never sent to the browser.
+
+Expected scheduler behavior:
+
+| Response | Meaning |
+| --- | --- |
+| `2xx` | Normal scheduled run completion. |
+| `409` | Safe overlap; another workspace run was active, so wait for the next interval. |
+| `401` or `403` | Configuration or security failure; review the n8n credential and app secret. |
+| `5xx` or network failure | Retry-worthy failure according to normal n8n retry policy. |
+
+The n8n workflow is optional and not connected until it is imported, configured with safe credentials, tested, and activated in n8n.
 
 Safe verification steps:
 

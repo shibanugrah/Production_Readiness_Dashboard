@@ -7,7 +7,10 @@ import {
   Panel,
   TruncatedText,
 } from "@/components/dashboard/primitives";
-import { getSettingsReadModel } from "@/server/dashboard/read-models";
+import {
+  getSchedulerMonitoringState,
+  getSettingsReadModel,
+} from "@/server/dashboard/read-models";
 
 function auditActionLabel(action: string) {
   if (action === "SERVICE_CREATED") {
@@ -31,6 +34,14 @@ function auditActionLabel(action: string) {
 
 export default async function SettingsPage() {
   const model = await getSettingsReadModel();
+  const schedulerState = model
+    ? getSchedulerMonitoringState(
+        model.latestScheduledRun,
+        model.latestScheduledRun
+          ? formatTimestamp(model.latestScheduledRun.startedAt)
+          : undefined,
+      )
+    : null;
 
   return (
     <AuthenticatedShell>
@@ -40,6 +51,58 @@ export default async function SettingsPage() {
         description="Workspace and operator settings are not connected yet."
       />
       {model ? (
+        <>
+        <Panel title="Scheduler Verification">
+          {schedulerState ? (
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-950">
+                  {schedulerState.label}
+                </p>
+                <p className="mt-1 text-sm font-medium text-slate-500">
+                  Derived from persisted scheduled health-check runs.
+                </p>
+              </div>
+              {model.latestScheduledRun ? (
+                <div className="grid gap-3 text-sm md:grid-cols-5">
+                  <div>
+                    <p className="font-semibold text-slate-500">Checked</p>
+                    <p className="mt-1 font-bold text-slate-950">
+                      {model.latestScheduledRun.checkedCount}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-500">Healthy</p>
+                    <p className="mt-1 font-bold text-emerald-600">
+                      {model.latestScheduledRun.healthyCount}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-500">Degraded</p>
+                    <p className="mt-1 font-bold text-amber-600">
+                      {model.latestScheduledRun.degradedCount}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-500">Down</p>
+                    <p className="mt-1 font-bold text-rose-600">
+                      {model.latestScheduledRun.downCount}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-500">Skipped</p>
+                    <p className="mt-1 font-bold text-slate-600">
+                      {model.latestScheduledRun.skippedCount}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+              <p className="text-xs font-medium text-slate-500">
+                Setup reference: docs/runbooks/n8n-scheduled-health-check-setup.md
+              </p>
+            </div>
+          ) : null}
+        </Panel>
         <Panel title="Audit Log">
           <CompactTable
             minWidth="760px"
@@ -70,6 +133,7 @@ export default async function SettingsPage() {
             }))}
           />
         </Panel>
+        </>
       ) : null}
       <Panel title="Settings">
         <EmptyState
