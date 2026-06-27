@@ -2,9 +2,9 @@
 
 Production Readiness Dashboard is the foundation for a multi-tenant operational control plane. Its first job is to prove that the app can start reproducibly, validate configuration, connect to PostgreSQL, and expose a safe self-health endpoint.
 
-This repository currently implements session-backed workspace access for the Phase 1 dashboard. It includes a workspace-scoped service registry domain, server-side service validation, local seed data, credentials-based demo authentication, Owner/Admin/Viewer permissions, a protected health-check runner, persisted health-check run history, secure operational-event ingestion, service audit logs, and a data-driven monitoring dashboard UI.
+This repository currently implements session-backed workspace access for the Phase 1 dashboard. It includes a workspace-scoped service registry domain, server-side service validation, local seed data, credentials-based demo authentication, Owner/Admin/Viewer permissions, a protected health-check runner, persisted health-check run history, secure operational-event ingestion, operator event triage, manual incident escalation, service audit logs, and a data-driven monitoring dashboard UI.
 
-An external scheduler such as n8n can call the protected scheduled-run endpoint, but no scheduler is configured by default. Incidents, event retries, dead-letter queues, deployment integrations, notifications, external monitoring integrations, invitations, password reset, OAuth, SSO, MFA, and billing are not built yet.
+An external scheduler such as n8n can call the protected scheduled-run endpoint, but no scheduler is configured by default. Event retries, dead-letter queues, automatic remediation, deployment integrations, notifications, paging, external monitoring integrations, invitations, password reset, OAuth, SSO, MFA, and billing are not built yet.
 
 ## Local Setup
 
@@ -115,15 +115,15 @@ Implemented routes:
 
 | Route | Data shown |
 | --- | --- |
-| `/` | Overview readiness, active service counts, latest check cycle evidence, service cards, recent failed checks, operational-events empty state, and deployment-evidence placeholder. |
+| `/` | Overview readiness, active service counts, latest check cycle evidence, service cards, recent failed checks, operational-event evidence, open incident evidence, and deployment-evidence placeholder. |
 | `/services` | Real service list with filters, current persisted status, latest check latency, last checked, and last healthy timestamps. |
 | `/services/[serviceId]` | Service detail, latest check result, check history, status-history strip, latest failure, and persisted configuration fields. |
-| `/events` | Real workspace-scoped operational events, filters, summary counts, linked services, and safe payload detail from persisted `OperationalEvent` rows. |
-| `/incidents` | Honest empty state; incident workflow is not connected yet. |
+| `/events` | Real workspace-scoped operational events, filters, summary counts, linked services, safe payload detail, and Owner/Admin triage controls from persisted `OperationalEvent` rows. |
+| `/incidents` | Real incidents manually created from operational events, filters, summary counts, source-event links, resolution notes, and audit timeline evidence. |
 | `/readiness` | Honest empty state; deployment readiness integration is not connected yet. |
 | `/settings` | Honest empty state; workspace settings and auth are not connected yet. |
 
-Every status, count, latency, failed-check row, run summary, operational-event row, and service card is calculated from persisted `Service`, `HealthCheckRun`, `HealthCheck`, and `OperationalEvent` rows. Services with no persisted checks are shown as `Unknown`, even if they were created successfully. The dashboard does not fabricate uptime percentages, incident rows, owners, readiness scores, deployment history, scheduler status, event source activity, or static telemetry.
+Every status, count, latency, failed-check row, run summary, operational-event row, incident row, and service card is calculated from persisted `Service`, `HealthCheckRun`, `HealthCheck`, `OperationalEvent`, and `Incident` rows. Services with no persisted checks are shown as `Unknown`, even if they were created successfully. The dashboard does not fabricate uptime percentages, owners, readiness scores, deployment history, scheduler status, event source activity, incident activity, or static telemetry.
 
 Scheduled monitoring status is evidence-based. Overview and Settings show n8n scheduling as active only after a real persisted `SCHEDULED` `HealthCheckRun` exists for the signed-in workspace.
 
@@ -248,4 +248,12 @@ Authorization: Bearer <event-ingestion-key>
 
 The app derives workspace and source from the validated key. Request bodies cannot choose another workspace or source. Idempotency is enforced by `workspaceId + source + idempotencyKey`: exact replay returns `200`, while changed content with the same idempotency key returns `409`.
 
-See `docs/runbooks/operational-event-ingestion.md` for the safe payload contract, response codes, redaction rules, and local verification steps. Events are persisted and visible on `/events` and the Overview operational-events panel. Incident creation, retry controls, event resolution, notifications, and dead-letter queues are intentionally not built yet.
+See `docs/runbooks/operational-event-ingestion.md` for the safe payload contract, response codes, redaction rules, and local verification steps. Events are persisted and visible on `/events` and the Overview operational-events panel.
+
+## Operational Event Triage And Incidents
+
+Owner and Admin users can acknowledge, resolve, and reopen real operational events from `/events`. Resolution and reopen notes are operator-authored, length-limited, and stored separately from the original ingestion evidence. Viewer users remain read-only, and server-side mutation paths enforce the same permission boundary.
+
+Owner and Admin users can create one linked incident from a real event. Incidents are visible on `/incidents` and on the Overview open-incidents panel. Resolving an incident records resolution notes and audit evidence; it does not delete the source event.
+
+See `docs/runbooks/operational-event-triage.md` for lifecycle rules, incident linkage behavior, and audit expectations. Retry controls, automatic event resolution, dead-letter queues, notifications, paging, owner assignment, and third-party incident integrations are intentionally not built yet.

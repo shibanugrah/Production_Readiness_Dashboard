@@ -1,4 +1,5 @@
 import { AuthenticatedShell } from "@/components/dashboard/authenticated-shell";
+import { EventTriageControls } from "@/components/dashboard/event-triage-controls";
 import { formatRelativeTime, formatTimestamp } from "@/components/dashboard/format";
 import {
   CompactTable,
@@ -22,6 +23,14 @@ function badgeClass(value: string) {
 
   if (value === "OPEN") {
     return "bg-blue-50 text-blue-700 border-blue-200";
+  }
+
+  if (value === "ACKNOWLEDGED") {
+    return "bg-amber-50 text-amber-700 border-amber-200";
+  }
+
+  if (value === "RESOLVED") {
+    return "bg-emerald-50 text-emerald-700 border-emerald-200";
   }
 
   return "bg-slate-50 text-slate-700 border-slate-200";
@@ -197,6 +206,10 @@ export default async function EventsPage({
                   <TextLink href={`/events?eventId=${event.id}`}>
                     View
                   </TextLink>
+                ) : event.incident ? (
+                  <TextLink href={`/incidents?incidentId=${event.incident.id}`}>
+                    Incident
+                  </TextLink>
                 ) : (
                   <TextLink href={`/events?eventId=${event.id}`}>
                     Details
@@ -244,12 +257,57 @@ export default async function EventsPage({
                       {model.selectedEvent.idempotencyKey}
                     </dd>
                   </div>
+                  <div>
+                    <dt className="font-semibold text-slate-500">Incident</dt>
+                    <dd className="mt-1 font-medium text-slate-900">
+                      {model.selectedEvent.incident ? (
+                        <TextLink href={`/incidents?incidentId=${model.selectedEvent.incident.id}`}>
+                          {model.selectedEvent.incident.title}
+                        </TextLink>
+                      ) : (
+                        "None"
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold text-slate-500">Acknowledged</dt>
+                    <dd className="mt-1 font-medium text-slate-900">
+                      {formatTimestamp(model.selectedEvent.acknowledgedAt)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold text-slate-500">Resolved</dt>
+                    <dd className="mt-1 font-medium text-slate-900">
+                      {formatTimestamp(model.selectedEvent.resolvedAt)}
+                    </dd>
+                  </div>
                 </dl>
+                {model.selectedEvent.resolutionNote ? (
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700">
+                    {model.selectedEvent.resolutionNote}
+                  </div>
+                ) : null}
                 {model.selectedEvent.errorMessage ? (
                   <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm font-medium text-rose-700">
                     {model.selectedEvent.errorMessage}
                   </div>
                 ) : null}
+                <div className="border-t border-slate-200 pt-4">
+                  <p className="mb-3 text-sm font-semibold text-slate-950">
+                    Triage
+                  </p>
+                  {model.canTriageEvents ? (
+                    <EventTriageControls
+                      eventId={model.selectedEvent.id}
+                      status={model.selectedEvent.status}
+                      incidentId={model.selectedEvent.incident?.id}
+                    />
+                  ) : (
+                    <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm font-medium text-slate-600">
+                      Viewer access is read-only.
+                    </div>
+                  )}
+                </div>
                 <pre className="max-h-80 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-700">
                   {payloadPreview(model.selectedEvent.metadata)}
                 </pre>

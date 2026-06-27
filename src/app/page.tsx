@@ -102,10 +102,10 @@ export default async function OverviewPage({
             tone={summary.failedCheckCount > 0 ? "rose" : "slate"}
           />
           <MetricCard
-            label="Deployment evidence"
-            value="Not connected"
-            detail="No deployment integration yet"
-            tone="blue"
+            label="Open incidents"
+            value={summary.openIncidentCount}
+            detail="Manual escalations from events"
+            tone={summary.openIncidentCount > 0 ? "rose" : "slate"}
           />
         </div>
 
@@ -250,11 +250,31 @@ export default async function OverviewPage({
                 </div>
               )}
             </Panel>
-            <Panel title="Deployment Evidence">
-              <EmptyState
-                title="Deployment integration not connected"
-                description="No readiness percentage, release history, or deployment actors are available yet."
-              />
+            <Panel title="Open Incidents" action={<TextLink href="/incidents">View incidents</TextLink>}>
+              {summary.recentOpenIncidents.length === 0 ? (
+                <EmptyState
+                  title="No open incidents"
+                  description="Incidents will appear here only after an Owner or Admin escalates a real operational event."
+                />
+              ) : (
+                <div className="space-y-3">
+                  {summary.recentOpenIncidents.map((incident) => (
+                    <div key={incident.id} className="rounded-md border border-slate-200 p-3">
+                      <TextLink href={`/incidents?incidentId=${incident.id}`}>
+                        {incident.title}
+                      </TextLink>
+                      <p className="mt-1 text-xs font-medium text-slate-500">
+                        {incident.severity} - {formatRelativeTime(incident.startedAt)}
+                      </p>
+                      {incident.service ? (
+                        <p className="mt-1 text-xs font-medium text-slate-500">
+                          Linked service: {incident.service.name}
+                        </p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
             </Panel>
           </div>
         </div>

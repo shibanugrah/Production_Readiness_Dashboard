@@ -39,6 +39,12 @@ export function canRunChecks(context: Pick<AuthenticatedWorkspaceContext, "role"
   return hasWorkspaceRole(context, WorkspaceRole.ADMIN);
 }
 
+export function canTriageOperationalEvents(
+  context: Pick<AuthenticatedWorkspaceContext, "role">,
+) {
+  return hasWorkspaceRole(context, WorkspaceRole.ADMIN);
+}
+
 export function canManageWorkspace(context: Pick<AuthenticatedWorkspaceContext, "role">) {
   return hasWorkspaceRole(context, WorkspaceRole.OWNER);
 }

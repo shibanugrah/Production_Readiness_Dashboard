@@ -59,8 +59,14 @@ function eventFixture() {
     metadata: null,
     payloadHash: "hash",
     idempotencyKey: "job-123",
+    acknowledgedAt: null,
+    acknowledgedByUserId: null,
+    resolvedAt: null,
+    resolvedByUserId: null,
+    resolutionNote: null,
     occurredAt: new Date("2026-06-27T00:00:00.000Z"),
     createdAt: new Date("2026-06-27T00:00:01.000Z"),
+    updatedAt: new Date("2026-06-27T00:00:01.000Z"),
   };
 }
 

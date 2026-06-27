@@ -45,6 +45,11 @@ vi.mock("@/server/db", () => ({
     operationalEventIngestKey: {
       findMany: vi.fn(),
     },
+    incident: {
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+      count: vi.fn(),
+    },
   },
 }));
 
@@ -228,6 +233,8 @@ describe("dashboard read model calculations", () => {
     vi.mocked(prisma.healthCheck.findMany).mockResolvedValue([]);
     vi.mocked(prisma.healthCheck.count).mockResolvedValue(0);
     vi.mocked(prisma.operationalEvent.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.incident.count).mockResolvedValue(0);
+    vi.mocked(prisma.incident.findMany).mockResolvedValue([]);
     vi.mocked(prisma.healthCheckRun.findFirst)
       .mockResolvedValueOnce({
         id: "run_1",
