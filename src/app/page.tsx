@@ -1,7 +1,12 @@
 import { ServiceStatus } from "@prisma/client";
 
 import { AuthenticatedShell } from "@/components/dashboard/authenticated-shell";
-import { formatHttpStatus, formatLatency, formatRelativeTime } from "@/components/dashboard/format";
+import {
+  formatHttpStatus,
+  formatLatency,
+  formatRelativeTime,
+  formatTimestamp,
+} from "@/components/dashboard/format";
 import { RunChecksControl } from "@/components/dashboard/local-actions";
 import {
   CompactTable,
@@ -38,6 +43,7 @@ export default async function OverviewPage({
 
   const checksResult =
     typeof params.checks === "string" ? params.checks : undefined;
+  const lastRun = summary.recentHealthCheckRuns[0] ?? null;
 
   return (
     <AuthenticatedShell>
@@ -86,6 +92,61 @@ export default async function OverviewPage({
             tone="blue"
           />
         </div>
+
+        <Panel title="Last check cycle">
+          {lastRun ? (
+            <div className="grid gap-4 md:grid-cols-[1fr_1.2fr]">
+              <div>
+                <p className="text-sm font-semibold text-slate-950">
+                  {lastRun.triggerType === "MANUAL" ? "Manual" : "Scheduled"} - {lastRun.status}
+                </p>
+                <p className="mt-1 text-sm font-medium text-slate-500">
+                  Started {formatRelativeTime(lastRun.startedAt)}
+                </p>
+                <p className="mt-1 text-xs font-medium text-slate-500">
+                  {formatTimestamp(lastRun.finishedAt ?? lastRun.startedAt)}
+                </p>
+                {lastRun.errorMessage ? (
+                  <p className="mt-2 text-sm font-semibold text-rose-600">
+                    {lastRun.errorMessage}
+                  </p>
+                ) : null}
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-5">
+                <div>
+                  <p className="font-semibold text-slate-500">Checked</p>
+                  <p className="mt-1 text-lg font-bold text-slate-950">{lastRun.checkedCount}</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-500">Healthy</p>
+                  <p className="mt-1 text-lg font-bold text-emerald-600">{lastRun.healthyCount}</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-500">Degraded</p>
+                  <p className="mt-1 text-lg font-bold text-amber-600">{lastRun.degradedCount}</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-500">Down</p>
+                  <p className="mt-1 text-lg font-bold text-rose-600">{lastRun.downCount}</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-500">Skipped</p>
+                  <p className="mt-1 text-lg font-bold text-slate-600">{lastRun.skippedCount}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <EmptyState
+              title="No check cycles recorded"
+              description="Manual runs will appear here after an Owner or Admin runs local checks."
+            />
+          )}
+          {!summary.latestScheduledRun ? (
+            <p className="mt-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600">
+              Scheduled checks are not configured yet.
+            </p>
+          ) : null}
+        </Panel>
 
         {summary.services.length === 0 ? (
           <EmptyState

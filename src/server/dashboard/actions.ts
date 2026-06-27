@@ -1,4 +1,5 @@
 "use server";
+import { HealthCheckRunTriggerType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -39,7 +40,11 @@ export async function runLocalChecksAction(formData: FormData) {
   }
 
   try {
-    await runHealthChecks(undefined, { workspaceId: dashboard.context.workspaceId });
+    await runHealthChecks(undefined, {
+      workspaceId: dashboard.context.workspaceId,
+      triggerType: HealthCheckRunTriggerType.MANUAL,
+      requestedByUserId: dashboard.context.user.id,
+    });
     revalidatePath("/");
     revalidatePath("/services");
   } catch {

@@ -1,4 +1,4 @@
-import { WorkspaceRole } from "@prisma/client";
+import { HealthCheckRunTriggerType, WorkspaceRole } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -97,6 +97,8 @@ describe("dashboard mutation RBAC", () => {
     );
     expect(runHealthChecks).toHaveBeenCalledWith(undefined, {
       workspaceId: "workspace_1",
+      triggerType: HealthCheckRunTriggerType.MANUAL,
+      requestedByUserId: "user_1",
     });
   });
 

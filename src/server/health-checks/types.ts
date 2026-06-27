@@ -1,4 +1,6 @@
 import {
+  HealthCheckRunStatus,
+  HealthCheckRunTriggerType,
   HealthCheckStatus,
   ServiceEnvironment,
   ServiceStatus,
@@ -48,12 +50,16 @@ export type ClassifiedCheck = {
 };
 
 export type HealthCheckRunSummary = {
+  runId?: string;
+  triggerType?: HealthCheckRunTriggerType;
+  status?: HealthCheckRunStatus;
   checked: number;
   healthy: number;
   degraded: number;
   down: number;
   skipped: number;
   errors: number;
+  errorMessage?: string | null;
 };
 
 export function emptyHealthCheckRunSummary(): HealthCheckRunSummary {

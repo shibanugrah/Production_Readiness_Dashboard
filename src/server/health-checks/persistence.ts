@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { PrismaClient, Service } from "@prisma/client";
+import { Prisma, PrismaClient, Service } from "@prisma/client";
 
 import { prisma } from "@/server/db";
 import {
@@ -10,7 +10,11 @@ import {
 
 export type HealthCheckPersistenceClient = Pick<
   PrismaClient,
-  "$transaction" | "healthCheck" | "service"
+  | "$transaction"
+  | "healthCheck"
+  | "healthCheckRun"
+  | "healthCheckRunLease"
+  | "service"
 >;
 
 export type AcquiredServiceLock = {
@@ -19,7 +23,19 @@ export type AcquiredServiceLock = {
 };
 
 const defaultLockTtlMs = 15_000;
+const defaultRunLeaseTtlMs = 5 * 60_000;
 const defaultClient = prisma as HealthCheckPersistenceClient;
+
+function isUniqueConstraintError(error: unknown) {
+  return (
+    (error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002") ||
+    (typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "P2002")
+  );
+}
 
 export async function acquireServiceCheckLock(
   service: Pick<CheckableService, "id">,
@@ -76,6 +92,7 @@ export async function persistHealthCheckResult(
   lock: AcquiredServiceLock,
   result: ClassifiedCheck,
   client: HealthCheckPersistenceClient = defaultClient,
+  runId?: string,
 ) {
   await client.$transaction([
     client.healthCheck.create({
@@ -83,6 +100,7 @@ export async function persistHealthCheckResult(
         requestId: result.requestId,
         workspaceId: service.workspaceId,
         serviceId: service.id,
+        runId,
         status: result.healthCheckStatus,
         httpStatus: result.httpStatus,
         responseTimeMs: result.responseTimeMs,
@@ -109,6 +127,60 @@ export async function persistHealthCheckResult(
       },
     }),
   ]);
+}
+
+export async function acquireWorkspaceRunLease(
+  workspaceId: string,
+  client: HealthCheckPersistenceClient = defaultClient,
+  now = new Date(),
+  leaseTtlMs = defaultRunLeaseTtlMs,
+) {
+  const lease = {
+    token: randomUUID(),
+    expiresAt: new Date(now.getTime() + leaseTtlMs),
+  };
+
+  try {
+    await client.healthCheckRunLease.create({
+      data: {
+        workspaceId,
+        lockToken: lease.token,
+        expiresAt: lease.expiresAt,
+      },
+    });
+
+    return lease;
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) {
+      throw error;
+    }
+  }
+
+  const result = await client.healthCheckRunLease.updateMany({
+    where: {
+      workspaceId,
+      expiresAt: { lt: now },
+    },
+    data: {
+      lockToken: lease.token,
+      expiresAt: lease.expiresAt,
+    },
+  });
+
+  return result.count === 1 ? lease : null;
+}
+
+export async function releaseWorkspaceRunLease(
+  workspaceId: string,
+  lockToken: string,
+  client: HealthCheckPersistenceClient = defaultClient,
+) {
+  await client.healthCheckRunLease.deleteMany({
+    where: {
+      workspaceId,
+      lockToken,
+    },
+  });
 }
 
 export function toCheckableService(service: Service): CheckableService {

@@ -1,5 +1,4 @@
-import { HealthCheckRunTriggerType } from "@prisma/client";
-
+import { HealthCheckRunStatus, HealthCheckRunTriggerType } from "@prisma/client";
 import { NextResponse } from "next/server";
 
 import { runHealthChecks } from "@/server/health-checks/runner";
@@ -30,7 +29,18 @@ export async function POST(request: Request) {
 
   const summary = await runHealthChecks(undefined, {
     triggerType: HealthCheckRunTriggerType.SCHEDULED,
+    requestedByUserId: null,
   });
+
+  if (summary.status === HealthCheckRunStatus.SKIPPED) {
+    return NextResponse.json(
+      {
+        ...summary,
+        message: "Another health-check run is already active for this workspace.",
+      },
+      { status: 409 },
+    );
+  }
 
   return NextResponse.json(summary);
 }

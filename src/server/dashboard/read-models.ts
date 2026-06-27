@@ -1,5 +1,7 @@
 import {
   HealthCheck,
+  HealthCheckRunStatus,
+  HealthCheckRunTriggerType,
   HealthCheckStatus,
   OperationalEvent,
   Service,
@@ -170,7 +172,15 @@ export async function getOverviewSummary() {
     status: HealthCheckStatus.FAILURE,
     checkedAt: { gte: since },
   };
-  const [services, failedChecks, failedCheckCount, operationalEvents] = await Promise.all([
+  const [
+    services,
+    failedChecks,
+    failedCheckCount,
+    operationalEvents,
+    latestCompletedRun,
+    latestScheduledRun,
+    recentHealthCheckRuns,
+  ] = await Promise.all([
     listServicesWithLatestCheck(dashboard.context.workspaceId),
     prisma.healthCheck.findMany({
       where: failedCheckWhere,
@@ -200,6 +210,34 @@ export async function getOverviewSummary() {
       orderBy: { occurredAt: "desc" },
       take: 5,
     }),
+    prisma.healthCheckRun.findFirst({
+      where: {
+        workspaceId: dashboard.context.workspaceId,
+        status: HealthCheckRunStatus.COMPLETED,
+      },
+      orderBy: { startedAt: "desc" },
+    }),
+    prisma.healthCheckRun.findFirst({
+      where: {
+        workspaceId: dashboard.context.workspaceId,
+        triggerType: HealthCheckRunTriggerType.SCHEDULED,
+      },
+      orderBy: { startedAt: "desc" },
+    }),
+    prisma.healthCheckRun.findMany({
+      where: { workspaceId: dashboard.context.workspaceId },
+      orderBy: { startedAt: "desc" },
+      take: 5,
+      include: {
+        requestedByUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    }),
   ]);
 
   const serviceRows = services.map(toDashboardServiceRow);
@@ -217,6 +255,9 @@ export async function getOverviewSummary() {
     failedCheckCount,
     failedChecks,
     operationalEvents,
+    latestCompletedRun,
+    latestScheduledRun,
+    recentHealthCheckRuns,
     rangeLabel: `Last ${recentRangeHours} hours`,
   };
 }

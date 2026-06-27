@@ -2,9 +2,9 @@
 
 Production Readiness Dashboard is the foundation for a multi-tenant operational control plane. Its first job is to prove that the app can start reproducibly, validate configuration, connect to PostgreSQL, and expose a safe self-health endpoint.
 
-This repository currently implements session-backed workspace access for the Phase 1 dashboard. It includes a workspace-scoped service registry domain, server-side service validation, local seed data, credentials-based demo authentication, Owner/Admin/Viewer permissions, a protected health-check runner, persisted health-check evidence, and a data-driven monitoring dashboard UI.
+This repository currently implements session-backed workspace access for the Phase 1 dashboard. It includes a workspace-scoped service registry domain, server-side service validation, local seed data, credentials-based demo authentication, Owner/Admin/Viewer permissions, a protected health-check runner, persisted health-check run history, service audit logs, and a data-driven monitoring dashboard UI.
 
-Scheduled checks, incidents, deployment integrations, notifications, external monitoring integrations, invitations, password reset, OAuth, SSO, MFA, and billing are not built yet.
+An external scheduler can call the protected scheduled-run endpoint, but no scheduler is configured by default. Incidents, deployment integrations, notifications, external monitoring integrations, invitations, password reset, OAuth, SSO, MFA, and billing are not built yet.
 
 ## Local Setup
 
@@ -80,7 +80,7 @@ Seed the local workspace and services:
 npm run db:seed
 ```
 
-The seed creates the `Portfolio Operations` workspace, demo Owner/Admin/Viewer users from local environment values, the dashboard service, the demo monitored service, and one inactive placeholder service. Passwords are hashed before storage; plaintext demo passwords must stay only in local `.env` files. The seed does not create health-check history; the protected runner creates real check history.
+The seed creates the `Portfolio Operations` workspace, demo Owner/Admin/Viewer users from local environment values, the dashboard service, the demo monitored service, and one inactive placeholder service. Passwords are hashed before storage; plaintext demo passwords must stay only in local `.env` files. The seed does not create health-check history; manual or scheduled runner calls create real `HealthCheckRun` records and linked `HealthCheck` rows.
 
 ## Authentication And Roles
 
@@ -115,7 +115,7 @@ Implemented routes:
 
 | Route | Data shown |
 | --- | --- |
-| `/` | Overview readiness, active service counts, service cards, recent failed checks, operational-events empty state, and deployment-evidence placeholder. |
+| `/` | Overview readiness, active service counts, latest check cycle evidence, service cards, recent failed checks, operational-events empty state, and deployment-evidence placeholder. |
 | `/services` | Real service list with filters, current persisted status, latest check latency, last checked, and last healthy timestamps. |
 | `/services/[serviceId]` | Service detail, latest check result, check history, status-history strip, latest failure, and persisted configuration fields. |
 | `/events` | Honest empty state; event ingestion is not connected yet. |
@@ -123,7 +123,7 @@ Implemented routes:
 | `/readiness` | Honest empty state; deployment readiness integration is not connected yet. |
 | `/settings` | Honest empty state; workspace settings and auth are not connected yet. |
 
-Every status, count, latency, failed-check row, and service card is calculated from persisted `Service` and `HealthCheck` rows. Services with no persisted checks are shown as `Unknown`, even if they were created successfully. The dashboard does not fabricate uptime percentages, incident rows, owners, readiness scores, deployment history, or static telemetry.
+Every status, count, latency, failed-check row, run summary, and service card is calculated from persisted `Service`, `HealthCheckRun`, and `HealthCheck` rows. Services with no persisted checks are shown as `Unknown`, even if they were created successfully. The dashboard does not fabricate uptime percentages, incident rows, owners, readiness scores, deployment history, scheduler status, or static telemetry.
 
 ## Health Endpoint
 
@@ -177,16 +177,18 @@ Unsupported modes return HTTP 400. In production mode, controllable demo modes a
 
 ## Run A Health-Check Cycle Locally
 
-The internal runner is protected by `INTERNAL_HEALTH_CHECK_SECRET`. Use the value already in your local `.env`; do not print or commit it.
+Owner and Admin users can run checks from the local dashboard UI. Those manual runs create `HealthCheckRun` records with `triggerType=MANUAL` and the requesting user recorded server-side.
+
+The internal scheduled-run boundary is protected by `INTERNAL_HEALTH_CHECK_SECRET`. Use the value already in your local `.env`; do not print or commit it.
 
 From PowerShell, after `docker compose up --build -d`, you can load the local secret into memory and call the runner:
 
 ```powershell
 $secret = (Get-Content .env | Where-Object { $_ -match '^INTERNAL_HEALTH_CHECK_SECRET=' }) -replace '^INTERNAL_HEALTH_CHECK_SECRET="?([^"]+)"?$', '$1'
-curl.exe -X POST http://localhost:3000/api/internal/health-checks/run -H "x-internal-health-check-secret: $secret"
+curl.exe -X POST http://localhost:3000/api/internal/health-checks/scheduled-run -H "x-internal-health-check-secret: $secret"
 ```
 
-The route runs checks for stored services. Active services create `HealthCheck` rows and update their current `Service.status`; inactive services are skipped. Historical failures remain after later recovery.
+The route creates a `HealthCheckRun` with `triggerType=SCHEDULED` and no user identity, runs checks for stored services, links each created `HealthCheck` row to that run, and persists summary counts. Active services create `HealthCheck` rows and update their current `Service.status`; inactive services are skipped. Historical failures remain after later recovery.
 
 To test demo scenarios locally, update the demo service `healthPath` in the database, run the protected route again, then restore it:
 
@@ -204,4 +206,18 @@ To test demo scenarios locally, update the demo service `healthPath` in the data
 /api/demo-service/health?mode=invalid
 ```
 
-Checks are not scheduled automatically yet. The dashboard can trigger checks only in local demo mode through a server action that calls the runner server-side; the internal secret is never sent to the browser.
+Checks are not scheduled automatically yet. The local demo uses manual runs by default, and production scheduling requires an external scheduler to call the protected scheduled-run endpoint. See `docs/runbooks/health-check-scheduler.md` for the scheduler-ready contract and an n8n-ready approach. The internal secret is never sent to the browser.
+
+Safe verification steps:
+
+```powershell
+npm run db:generate
+npm run db:migrate
+npm run db:seed
+npm run lint
+npm run typecheck
+npm run test
+docker compose up --build -d
+curl.exe http://localhost:3000/api/health
+docker compose ps
+```

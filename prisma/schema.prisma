@@ -33,6 +33,18 @@ enum HealthCheckStatus {
   FAILURE
 }
 
+enum HealthCheckRunTriggerType {
+  MANUAL
+  SCHEDULED
+}
+
+enum HealthCheckRunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
 enum OperationalEventType {
   HEALTH_CHECK
   WEBHOOK
@@ -56,38 +68,41 @@ model AppSetting {
 }
 
 model Workspace {
-  id                String             @id @default(cuid())
-  name              String
-  slug              String             @unique
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  members           WorkspaceMember[]
-  services          Service[]
-  healthChecks      HealthCheck[]
-  operationalEvents OperationalEvent[]
-  auditLogs         AuditLog[]
+  id                  String               @id @default(cuid())
+  name                String
+  slug                String               @unique
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  members             WorkspaceMember[]
+  services            Service[]
+  healthChecks        HealthCheck[]
+  healthCheckRuns     HealthCheckRun[]
+  healthCheckRunLease HealthCheckRunLease?
+  operationalEvents   OperationalEvent[]
+  auditLogs           AuditLog[]
 }
 
 model User {
-  id           String            @id @default(cuid())
-  name         String
-  email        String            @unique
-  passwordHash String?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  memberships  WorkspaceMember[]
-  sessions     Session[]
-  auditLogs     AuditLog[]
+  id                       String            @id @default(cuid())
+  name                     String
+  email                    String            @unique
+  passwordHash             String?
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+  memberships              WorkspaceMember[]
+  sessions                 Session[]
+  auditLogs                AuditLog[]
+  requestedHealthCheckRuns HealthCheckRun[]
 }
 
 model Session {
-  id           String   @id @default(cuid())
-  userId       String
-  tokenHash    String   @unique
-  expiresAt    DateTime
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expiresAt])
@@ -108,25 +123,25 @@ model WorkspaceMember {
 }
 
 model Service {
-  id                String              @id @default(cuid())
-  workspaceId       String
-  name              String
-  slug              String
-  baseUrl           String
-  healthPath        String
-  environment       ServiceEnvironment
-  expectedVersion   String?
-  status            ServiceStatus       @default(UNKNOWN)
-  isActive          Boolean             @default(true)
-  lastCheckedAt     DateTime?
-  lastHealthyAt     DateTime?
-  checkLockToken    String?
+  id                 String             @id @default(cuid())
+  workspaceId        String
+  name               String
+  slug               String
+  baseUrl            String
+  healthPath         String
+  environment        ServiceEnvironment
+  expectedVersion    String?
+  status             ServiceStatus      @default(UNKNOWN)
+  isActive           Boolean            @default(true)
+  lastCheckedAt      DateTime?
+  lastHealthyAt      DateTime?
+  checkLockToken     String?
   checkLockExpiresAt DateTime?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  workspace         Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  healthChecks      HealthCheck[]
-  operationalEvents OperationalEvent[]
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  workspace          Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  healthChecks       HealthCheck[]
+  operationalEvents  OperationalEvent[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, status])
@@ -134,22 +149,63 @@ model Service {
 }
 
 model HealthCheck {
-  id             String            @id @default(cuid())
-  requestId      String            @unique
-  workspaceId    String
-  serviceId      String
-  status         HealthCheckStatus
-  httpStatus     Int?
-  responseTimeMs Int?
-  observedVersion String?
+  id               String            @id @default(cuid())
+  requestId        String            @unique
+  workspaceId      String
+  serviceId        String
+  runId            String?
+  status           HealthCheckStatus
+  httpStatus       Int?
+  responseTimeMs   Int?
+  observedVersion  String?
   migrationVersion String?
-  message        String?
-  checkedAt      DateTime          @default(now())
-  createdAt      DateTime          @default(now())
-  workspace      Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  service        Service           @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  message          String?
+  checkedAt        DateTime          @default(now())
+  createdAt        DateTime          @default(now())
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  service          Service           @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  run              HealthCheckRun?   @relation(fields: [runId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, serviceId, checkedAt])
+  @@index([workspaceId, runId])
+}
+
+model HealthCheckRun {
+  id                String                    @id @default(cuid())
+  workspaceId       String
+  triggerType       HealthCheckRunTriggerType
+  status            HealthCheckRunStatus      @default(RUNNING)
+  requestedByUserId String?
+  startedAt         DateTime                  @default(now())
+  finishedAt        DateTime?
+  checkedCount      Int                       @default(0)
+  healthyCount      Int                       @default(0)
+  degradedCount     Int                       @default(0)
+  downCount         Int                       @default(0)
+  skippedCount      Int                       @default(0)
+  errorCount        Int                       @default(0)
+  errorMessage      String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  workspace         Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  requestedByUser   User?                     @relation(fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  healthChecks      HealthCheck[]
+
+  @@index([workspaceId, startedAt])
+  @@index([workspaceId, triggerType, startedAt])
+  @@index([workspaceId, status, startedAt])
+  @@index([requestedByUserId])
+}
+
+model HealthCheckRunLease {
+  workspaceId String    @id
+  lockToken   String
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
 }
 
 model OperationalEvent {

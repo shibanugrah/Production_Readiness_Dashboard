@@ -1,4 +1,6 @@
 import {
+  HealthCheckRunStatus,
+  HealthCheckRunTriggerType,
   HealthCheckStatus,
   ServiceEnvironment,
   ServiceStatus,
@@ -62,11 +64,20 @@ function createFakeService(overrides: Partial<FakeService> = {}): FakeService {
 
 class FakeRunnerClient {
   readonly healthChecks: Array<Record<string, unknown>> = [];
+  readonly healthCheckRuns: Array<Record<string, unknown>> = [];
+  readonly healthCheckRunLeases = new Map<
+    string,
+    { workspaceId: string; lockToken: string; expiresAt: Date }
+  >();
+  private nextRunId = 1;
 
   constructor(readonly services: FakeService[]) {}
 
   readonly service = {
-    findMany: async () => this.services,
+    findMany: async ({ where }: { where?: Record<string, unknown> } = {}) =>
+      this.services.filter((service) =>
+        where?.workspaceId ? service.workspaceId === where.workspaceId : true,
+      ),
     updateMany: async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
       const matches = this.services.filter((service) =>
         this.matchesServiceWhere(service, where),
@@ -84,6 +95,94 @@ class FakeRunnerClient {
     create: async ({ data }: { data: Record<string, unknown> }) => {
       this.healthChecks.push(data);
       return data;
+    },
+  };
+
+  readonly healthCheckRun = {
+    create: async ({ data }: { data: Record<string, unknown> }) => {
+      const run = {
+        id: `run_${this.nextRunId}`,
+        ...data,
+        startedAt: new Date(),
+        finishedAt: null,
+        checkedCount: 0,
+        healthyCount: 0,
+        degradedCount: 0,
+        downCount: 0,
+        skippedCount: 0,
+        errorCount: 0,
+        errorMessage: null,
+      };
+
+      this.nextRunId += 1;
+      this.healthCheckRuns.push(run);
+      return run;
+    },
+    update: async ({
+      where,
+      data,
+    }: {
+      where: { id: string };
+      data: Record<string, unknown>;
+    }) => {
+      const run = this.healthCheckRuns.find((candidate) => candidate.id === where.id);
+
+      if (!run) {
+        throw new Error("run not found");
+      }
+
+      Object.assign(run, data);
+      return run;
+    },
+  };
+
+  readonly healthCheckRunLease = {
+    create: async ({
+      data,
+    }: {
+      data: { workspaceId: string; lockToken: string; expiresAt: Date };
+    }) => {
+      if (this.healthCheckRunLeases.has(data.workspaceId)) {
+        throw { code: "P2002" };
+      }
+
+      this.healthCheckRunLeases.set(data.workspaceId, data);
+      return data;
+    },
+    updateMany: async ({
+      where,
+      data,
+    }: {
+      where: { workspaceId: string; expiresAt: { lt: Date } };
+      data: { lockToken: string; expiresAt: Date };
+    }) => {
+      const lease = this.healthCheckRunLeases.get(where.workspaceId);
+
+      if (!lease || !(lease.expiresAt < where.expiresAt.lt)) {
+        return { count: 0 };
+      }
+
+      this.healthCheckRunLeases.set(where.workspaceId, {
+        workspaceId: where.workspaceId,
+        lockToken: data.lockToken,
+        expiresAt: data.expiresAt,
+      });
+
+      return { count: 1 };
+    },
+    deleteMany: async ({
+      where,
+    }: {
+      where: { workspaceId: string; lockToken: string };
+    }) => {
+      const lease = this.healthCheckRunLeases.get(where.workspaceId);
+
+      if (!lease || lease.lockToken !== where.lockToken) {
+        return { count: 0 };
+      }
+
+      this.healthCheckRunLeases.delete(where.workspaceId);
+      return { count: 1 };
     },
   };
 
@@ -153,9 +252,44 @@ describe("health check runner persistence and locking", () => {
       }),
     ).resolves.toMatchObject({ checked: 0, skipped: 1 });
     expect(client.healthChecks).toHaveLength(0);
+    expect(client.healthCheckRuns[0]).toMatchObject({
+      status: HealthCheckRunStatus.COMPLETED,
+      skippedCount: 1,
+    });
   });
 
-  it("prevents concurrent duplicate checks with the service lock", async () => {
+  it("creates a manual HealthCheckRun with the requester identity", async () => {
+    const client = new FakeRunnerClient([createFakeService()]);
+
+    const summary = await runHealthChecks(client.asClient(), {
+      environment,
+      workspaceId: "workspace_1",
+      triggerType: HealthCheckRunTriggerType.MANUAL,
+      requestedByUserId: "user_owner",
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ status: "ok", version: "local-demo" })),
+    });
+
+    expect(summary).toMatchObject({
+      checked: 1,
+      healthy: 1,
+      triggerType: HealthCheckRunTriggerType.MANUAL,
+      status: HealthCheckRunStatus.COMPLETED,
+    });
+    expect(client.healthCheckRuns[0]).toMatchObject({
+      workspaceId: "workspace_1",
+      triggerType: HealthCheckRunTriggerType.MANUAL,
+      requestedByUserId: "user_owner",
+      status: HealthCheckRunStatus.COMPLETED,
+      checkedCount: 1,
+      healthyCount: 1,
+    });
+    expect(client.healthChecks[0]).toMatchObject({
+      runId: client.healthCheckRuns[0].id,
+    });
+  });
+
+  it("prevents concurrent duplicate runs with the workspace lease", async () => {
     const client = new FakeRunnerClient([createFakeService()]);
     const fetchImpl = async () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -174,9 +308,44 @@ describe("health check runner persistence and locking", () => {
       expect.objectContaining({ checked: 1, skipped: 0 }),
     );
     expect(summaries).toContainEqual(
-      expect.objectContaining({ checked: 0, skipped: 1 }),
+      expect.objectContaining({
+        checked: 0,
+        status: HealthCheckRunStatus.SKIPPED,
+      }),
     );
     expect(client.healthChecks).toHaveLength(1);
+    expect(client.healthCheckRuns).toHaveLength(2);
+    expect(
+      client.healthCheckRuns.filter(
+        (run) => run.status === HealthCheckRunStatus.SKIPPED,
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("still skips a service when its per-service lock is active", async () => {
+    const client = new FakeRunnerClient([
+      createFakeService({
+        checkLockToken: "active-lock",
+        checkLockExpiresAt: new Date(Date.now() + 60_000),
+      }),
+    ]);
+
+    const summary = await runHealthChecks(client.asClient(), {
+      environment,
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ status: "ok", version: "local-demo" })),
+    });
+
+    expect(summary).toMatchObject({
+      checked: 0,
+      skipped: 1,
+      status: HealthCheckRunStatus.COMPLETED,
+    });
+    expect(client.healthChecks).toHaveLength(0);
+    expect(client.healthCheckRuns[0]).toMatchObject({
+      status: HealthCheckRunStatus.COMPLETED,
+      skippedCount: 1,
+    });
   });
 
   it("persists network failure evidence", async () => {
@@ -196,6 +365,12 @@ describe("health check runner persistence and locking", () => {
       status: HealthCheckStatus.FAILURE,
       httpStatus: null,
       message: "connect ECONNREFUSED",
+      runId: client.healthCheckRuns[0].id,
+    });
+    expect(client.healthCheckRuns[0]).toMatchObject({
+      status: HealthCheckRunStatus.COMPLETED,
+      checkedCount: 1,
+      downCount: 1,
     });
   });
 
@@ -219,7 +394,127 @@ describe("health check runner persistence and locking", () => {
     expect(client.healthChecks[0]).toMatchObject({
       status: HealthCheckStatus.DEGRADED,
       observedVersion: "different-version",
+      runId: client.healthCheckRuns[0].id,
     });
+    expect(client.healthCheckRuns[0]).toMatchObject({
+      checkedCount: 1,
+      degradedCount: 1,
+    });
+  });
+
+  it("continues checking remaining services after one service failure", async () => {
+    const downService = createFakeService({
+      id: "service_1",
+    });
+    const healthyService = createFakeService({
+      id: "service_2",
+      name: "Healthy Service",
+      slug: "healthy-service",
+    });
+    const client = new FakeRunnerClient([downService, healthyService]);
+    let calls = 0;
+
+    const summary = await runHealthChecks(client.asClient(), {
+      environment,
+      fetchImpl: async () => {
+        calls += 1;
+
+        if (calls === 1) {
+          throw new Error("connect ECONNREFUSED");
+        }
+
+        return new Response(
+          JSON.stringify({ status: "ok", version: "local-demo" }),
+        );
+      },
+    });
+
+    expect(summary).toMatchObject({
+      checked: 2,
+      healthy: 1,
+      down: 1,
+      errors: 0,
+      status: HealthCheckRunStatus.COMPLETED,
+    });
+    expect(client.healthChecks).toHaveLength(2);
+    expect(client.healthChecks[0]).toMatchObject({
+      serviceId: "service_1",
+      status: HealthCheckStatus.FAILURE,
+      runId: client.healthCheckRuns[0].id,
+    });
+    expect(client.healthChecks[1]).toMatchObject({
+      serviceId: "service_2",
+      status: HealthCheckStatus.SUCCESS,
+      runId: client.healthCheckRuns[0].id,
+    });
+    expect(client.healthCheckRuns[0]).toMatchObject({
+      checkedCount: 2,
+      healthyCount: 1,
+      downCount: 1,
+      errorCount: 0,
+    });
+  });
+
+  it("marks the parent run failed when an unexpected runner failure occurs", async () => {
+    const client = new FakeRunnerClient([]);
+    client.service.findMany = async () => {
+      throw new Error("database unavailable");
+    };
+
+    await expect(
+      runHealthChecks(client.asClient(), {
+        environment,
+        workspaceId: "workspace_1",
+      }),
+    ).rejects.toThrow("database unavailable");
+
+    expect(client.healthCheckRuns[0]).toMatchObject({
+      status: HealthCheckRunStatus.FAILED,
+      errorMessage: "database unavailable",
+    });
+  });
+
+  it("marks the parent run failed when workspace lease acquisition fails unexpectedly", async () => {
+    const client = new FakeRunnerClient([createFakeService()]);
+    client.healthCheckRunLease.create = async () => {
+      throw new Error("lease store unavailable");
+    };
+
+    await expect(
+      runHealthChecks(client.asClient(), {
+        environment,
+        workspaceId: "workspace_1",
+      }),
+    ).rejects.toThrow("lease store unavailable");
+
+    expect(client.healthCheckRuns[0]).toMatchObject({
+      status: HealthCheckRunStatus.FAILED,
+      errorMessage: "lease store unavailable",
+    });
+    expect(client.healthChecks).toHaveLength(0);
+  });
+
+  it("recovers automatically from an expired workspace lease", async () => {
+    const client = new FakeRunnerClient([createFakeService()]);
+    client.healthCheckRunLeases.set("workspace_1", {
+      workspaceId: "workspace_1",
+      lockToken: "expired-lock",
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+
+    const summary = await runHealthChecks(client.asClient(), {
+      environment,
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ status: "ok", version: "local-demo" })),
+    });
+
+    expect(summary).toMatchObject({
+      checked: 1,
+      healthy: 1,
+      status: HealthCheckRunStatus.COMPLETED,
+    });
+    expect(client.healthChecks).toHaveLength(1);
+    expect(client.healthCheckRunLeases.size).toBe(0);
   });
 
   it("preserves failed history after later recovery", async () => {
