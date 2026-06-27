@@ -42,16 +42,22 @@ For local Docker Compose usage, Prisma commands run from the host use `localhost
 
 ## Docker
 
-Start PostgreSQL and the Next.js app:
+For a clean local Docker verification, start PostgreSQL first, apply the checked-in migrations from the host, seed local data, then start the full stack:
 
-```bash
-docker compose up --build
+```powershell
+docker compose up -d postgres
+npm run db:generate
+npm run db:migrate
+npm run db:migrate:status
+npm run db:seed
+docker compose up --build -d
 ```
 
 Then verify the app:
 
-```bash
-curl http://localhost:3000/api/health
+```powershell
+curl.exe http://localhost:3000/api/health
+docker compose ps
 ```
 
 Stop the stack:
@@ -62,21 +68,29 @@ docker compose down
 
 ## Database
 
-Generate the Prisma client:
+This project uses checked-in Prisma migrations as the source of truth for schema changes.
 
-```bash
+Apply existing migrations during local setup, CI, Docker verification, deployment, and clean-clone setup:
+
+```powershell
 npm run db:generate
-```
-
-Run migrations:
-
-```bash
 npm run db:migrate
+npm run db:migrate:status
 ```
+
+`npm run db:migrate` uses `prisma migrate deploy`, so it only applies migrations that already exist in `prisma/migrations/`. It is safe for non-interactive environments and does not create new migration files.
+
+Create a new schema migration only during interactive local development:
+
+```powershell
+npm run db:migrate:dev -- --name descriptive_migration_name
+```
+
+After creating a migration, inspect the generated SQL before running it anywhere else. Commit both the `prisma/schema.prisma` change and the generated migration directory. For this portfolio project's tracked schema workflow, never use `prisma db push`.
 
 Seed the local workspace and services:
 
-```bash
+```powershell
 npm run db:seed
 ```
 
@@ -100,13 +114,14 @@ Workspace access is resolved on the server from the authenticated session and `W
 
 Run the local checks:
 
-```bash
+```powershell
+npm run db:generate
+npm run db:migrate
+npm run db:migrate:status
+npm run db:seed
 npm run lint
 npm run typecheck
 npm run test
-npm run db:generate
-npm run db:migrate
-npm run db:seed
 ```
 
 ## Dashboard Routes
@@ -226,6 +241,7 @@ Safe verification steps:
 ```powershell
 npm run db:generate
 npm run db:migrate
+npm run db:migrate:status
 npm run db:seed
 npm run lint
 npm run typecheck
