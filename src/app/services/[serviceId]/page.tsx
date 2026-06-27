@@ -44,6 +44,23 @@ function DetailRow({
   );
 }
 
+function MetricValue({
+  value,
+  className = "",
+}: {
+  value: string;
+  className?: string;
+}) {
+  return (
+    <span
+      title={value}
+      className={`block min-w-0 truncate text-[24px] leading-[30px] ${className}`}
+    >
+      {value}
+    </span>
+  );
+}
+
 function auditActionLabel(action: string) {
   if (action === "SERVICE_CREATED") {
     return "Created";
@@ -167,7 +184,12 @@ export default async function ServiceDetailPage({
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <MetricCard
             label="Current status"
-            value={<span className={statusTone(service.displayStatus)}>{service.displayStatus}</span>}
+            value={
+              <MetricValue
+                value={service.displayStatus}
+                className={statusTone(service.displayStatus)}
+              />
+            }
             detail={statusDescription(service.displayStatus)}
             tone={
               service.displayStatus === "HEALTHY"
@@ -193,13 +215,13 @@ export default async function ServiceDetailPage({
           />
           <MetricCard
             label="Version"
-            value={latestVersion}
+            value={<MetricValue value={latestVersion} />}
             detail={latestCheck?.observedVersion ? "Observed version" : "Expected version"}
             tone="blue"
           />
           <MetricCard
             label="Latest result"
-            value={latestCheck ? latestCheck.status : "No result"}
+            value={<MetricValue value={latestCheck ? latestCheck.status : "No result"} />}
             detail={latestCheck ? formatRelativeTime(latestCheck.checkedAt) : "No checks recorded"}
             tone={
               latestCheck?.status === "SUCCESS"

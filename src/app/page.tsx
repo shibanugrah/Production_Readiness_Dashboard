@@ -111,8 +111,8 @@ export default async function OverviewPage({
 
         <Panel title="Last check cycle">
           {lastRun ? (
-            <div className="grid gap-4 md:grid-cols-[1fr_1.2fr]">
-              <div>
+            <div className="grid gap-4 md:grid-cols-[minmax(220px,0.8fr)_1fr] md:items-center">
+              <div className="min-w-0">
                 <p className="text-sm font-semibold text-slate-950">
                   {lastRun.triggerType === "MANUAL" ? "Manual" : "Scheduled"} - {lastRun.status}
                 </p>
@@ -157,17 +157,22 @@ export default async function OverviewPage({
               description="Manual runs will appear here after an Owner or Admin runs local checks."
             />
           )}
-          <div className={`mt-4 rounded-md border px-3 py-2 ${schedulerToneClasses[schedulerState.tone]}`}>
-            <p className="text-xs font-semibold uppercase tracking-[0.04em]">
-              Scheduled monitoring
-            </p>
-            <p className="mt-1 text-sm font-semibold">{schedulerState.label}</p>
+          <div className={`mt-3 flex flex-col gap-2 rounded-md border px-3 py-2 text-sm md:flex-row md:items-center md:justify-between ${schedulerToneClasses[schedulerState.tone]}`}>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.04em]">
+                Scheduled monitoring evidence
+              </p>
+              <p className="mt-0.5 font-semibold">{schedulerState.label}</p>
+            </div>
             {summary.latestScheduledRun ? (
-              <p className="mt-1 text-xs font-medium">
-                Checked {summary.latestScheduledRun.checkedCount}, Healthy{" "}
-                {summary.latestScheduledRun.healthyCount}, Degraded{" "}
-                {summary.latestScheduledRun.degradedCount}, Down{" "}
-                {summary.latestScheduledRun.downCount}, Skipped{" "}
+              <p
+                className="shrink-0 text-xs font-medium"
+                title={formatTimestamp(summary.latestScheduledRun.finishedAt ?? summary.latestScheduledRun.startedAt)}
+              >
+                {summary.latestScheduledRun.status} · Checked {summary.latestScheduledRun.checkedCount} · Healthy{" "}
+                {summary.latestScheduledRun.healthyCount} · Degraded{" "}
+                {summary.latestScheduledRun.degradedCount} · Down{" "}
+                {summary.latestScheduledRun.downCount} · Skipped{" "}
                 {summary.latestScheduledRun.skippedCount}
               </p>
             ) : null}

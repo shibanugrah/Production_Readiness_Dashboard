@@ -33,6 +33,34 @@ function auditActionLabel(action: string) {
     return "Reactivated";
   }
 
+  if (action === "EVENT_INGEST_KEY_CREATED") {
+    return "Key created";
+  }
+
+  if (action === "EVENT_INGEST_KEY_REVOKED") {
+    return "Key revoked";
+  }
+
+  if (action === "OPERATIONAL_EVENT_ACKNOWLEDGED") {
+    return "Event acknowledged";
+  }
+
+  if (action === "OPERATIONAL_EVENT_RESOLVED") {
+    return "Event resolved";
+  }
+
+  if (action === "OPERATIONAL_EVENT_REOPENED") {
+    return "Event reopened";
+  }
+
+  if (action === "INCIDENT_CREATED") {
+    return "Incident created";
+  }
+
+  if (action === "INCIDENT_RESOLVED") {
+    return "Incident resolved";
+  }
+
   return action;
 }
 
@@ -52,7 +80,7 @@ export default async function SettingsPage() {
     <div className="space-y-5">
       <PageHeader
         title="Settings"
-        description="Workspace and operator settings are not connected yet."
+        description="Review scheduler evidence, event ingestion keys, and workspace audit activity."
       />
       {model ? (
         <>
@@ -167,8 +195,8 @@ export default async function SettingsPage() {
             ]}
             empty={
               <EmptyState
-                title="No service-management audit entries"
-                description="Service create, update, deactivate, and reactivate actions will appear here."
+                title="No workspace audit activity"
+                description="Service management, event ingestion key, event triage, and incident actions will appear here."
               />
             }
             rows={model.auditLogs.map((entry) => ({
@@ -182,7 +210,7 @@ export default async function SettingsPage() {
                 </div>
               ),
               action: <span className="font-semibold text-slate-800">{auditActionLabel(entry.action)}</span>,
-              resource: <TruncatedText value={entry.resourceId} className="text-slate-600" />,
+              resource: <TruncatedText value={entry.resourceLabel} className="text-slate-600" />,
             }))}
           />
         </Panel>

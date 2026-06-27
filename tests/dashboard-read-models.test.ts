@@ -16,6 +16,7 @@ import {
   getOverviewSummary,
   getSchedulerMonitoringState,
   getServiceDetailReadModel,
+  getSettingsReadModel,
   ServiceWithLatestCheck,
 } from "@/server/dashboard/read-models";
 import { prisma } from "@/server/db";
@@ -49,6 +50,9 @@ vi.mock("@/server/db", () => ({
       findMany: vi.fn(),
       findFirst: vi.fn(),
       count: vi.fn(),
+    },
+    auditLog: {
+      findMany: vi.fn(),
     },
   },
 }));
@@ -335,6 +339,137 @@ describe("dashboard read model calculations", () => {
         where: expect.objectContaining({
           workspaceId: "workspace_a",
         }),
+      }),
+    );
+  });
+
+  it("enriches settings audit rows with workspace-safe resource labels", async () => {
+    vi.mocked(getCurrentWorkspaceContext).mockResolvedValue({
+      workspaceId: "workspace_a",
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        name: "Demo Owner",
+        email: "owner@example.local",
+      },
+      workspace: {
+        id: "workspace_a",
+        name: "Workspace A",
+        slug: "workspace-a",
+      },
+      role: "OWNER",
+    });
+    vi.mocked(prisma.auditLog.findMany).mockResolvedValue([
+      {
+        id: "audit_1",
+        workspaceId: "workspace_a",
+        actorUserId: "user_1",
+        action: "SERVICE_UPDATED",
+        resourceType: "SERVICE",
+        resourceId: "svc_123",
+        metadataJson: null,
+        createdAt: new Date("2026-06-27T00:00:00.000Z"),
+        actorUser: {
+          id: "user_1",
+          name: "Demo Owner",
+          email: "owner@example.local",
+        },
+      },
+      {
+        id: "audit_2",
+        workspaceId: "workspace_a",
+        actorUserId: "user_1",
+        action: "EVENT_INGEST_KEY_CREATED",
+        resourceType: "OPERATIONAL_EVENT_INGEST_KEY",
+        resourceId: "key_123",
+        metadataJson: null,
+        createdAt: new Date("2026-06-27T00:01:00.000Z"),
+        actorUser: {
+          id: "user_1",
+          name: "Demo Owner",
+          email: "owner@example.local",
+        },
+      },
+      {
+        id: "audit_3",
+        workspaceId: "workspace_a",
+        actorUserId: "user_1",
+        action: "OPERATIONAL_EVENT_ACKNOWLEDGED",
+        resourceType: "OPERATIONAL_EVENT",
+        resourceId: "event_123",
+        metadataJson: null,
+        createdAt: new Date("2026-06-27T00:02:00.000Z"),
+        actorUser: {
+          id: "user_1",
+          name: "Demo Owner",
+          email: "owner@example.local",
+        },
+      },
+      {
+        id: "audit_4",
+        workspaceId: "workspace_a",
+        actorUserId: "user_1",
+        action: "INCIDENT_CREATED",
+        resourceType: "INCIDENT",
+        resourceId: "incident_123",
+        metadataJson: null,
+        createdAt: new Date("2026-06-27T00:03:00.000Z"),
+        actorUser: {
+          id: "user_1",
+          name: "Demo Owner",
+          email: "owner@example.local",
+        },
+      },
+      {
+        id: "audit_5",
+        workspaceId: "workspace_a",
+        actorUserId: "user_1",
+        action: "SERVICE_UPDATED",
+        resourceType: "SERVICE",
+        resourceId: "svc_deleted",
+        metadataJson: null,
+        createdAt: new Date("2026-06-27T00:04:00.000Z"),
+        actorUser: {
+          id: "user_1",
+          name: "Demo Owner",
+          email: "owner@example.local",
+        },
+      },
+    ] as never);
+    vi.mocked(prisma.healthCheckRun.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.operationalEventIngestKey.findMany)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: "key_123", name: "Smoke test events" },
+      ] as never);
+    vi.mocked(prisma.service.findMany).mockResolvedValue([
+      { id: "svc_123", name: "Codex Manual 105551" },
+    ] as never);
+    vi.mocked(prisma.operationalEvent.findMany).mockResolvedValue([
+      { id: "event_123", message: "Local smoke test event" },
+    ] as never);
+    vi.mocked(prisma.incident.findMany).mockResolvedValue([
+      { id: "incident_123", title: "Local smoke test incident" },
+    ] as never);
+
+    const model = await getSettingsReadModel();
+
+    expect(model?.auditLogs.map((entry) => entry.resourceLabel)).toEqual([
+      "Service · Codex Manual 105551",
+      "Event ingestion key · Smoke test events",
+      "Operational event · Local smoke test event",
+      "Incident · Local smoke test incident",
+      "Service record unavailable",
+    ]);
+    expect(model?.auditLogs.map((entry) => entry.resourceLabel).join(" ")).not.toContain(
+      "svc_123",
+    );
+    expect(prisma.service.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          workspaceId: "workspace_a",
+          id: { in: ["svc_123", "svc_deleted"] },
+        },
       }),
     );
   });

@@ -125,6 +125,17 @@ export function RevokeEventIngestKeyForm({
     initialState,
   );
 
+  if (disabled) {
+    return (
+      <span
+        className="inline-flex h-9 items-center justify-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-500"
+        aria-label="Event ingestion key already revoked"
+      >
+        Revoked
+      </span>
+    );
+  }
+
   return (
     <form
       action={formAction}

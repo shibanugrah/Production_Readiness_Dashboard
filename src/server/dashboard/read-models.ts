@@ -1,4 +1,5 @@
 import {
+  AuditLog,
   HealthCheck,
   HealthCheckRun,
   HealthCheckRunStatus,
@@ -113,6 +114,15 @@ export type SchedulerMonitoringState = {
   tone: "slate" | "green" | "amber" | "rose" | "blue";
 };
 
+export type SettingsAuditLogRow = AuditLog & {
+  actorUser: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  resourceLabel: string;
+};
+
 export type DashboardServiceRow = ServiceWithLatestCheck & {
   displayStatus: DisplayStatus;
   latestCheck: LatestCheck | null;
@@ -225,6 +235,134 @@ export function getSchedulerMonitoringState(
     label: "Running — scheduled run in progress",
     tone: "blue",
   };
+}
+
+function fallbackAuditResourceLabel(resourceType: string) {
+  if (resourceType === "SERVICE") {
+    return "Service record unavailable";
+  }
+
+  if (resourceType === "OPERATIONAL_EVENT_INGEST_KEY") {
+    return "Event ingestion key unavailable";
+  }
+
+  if (resourceType === "OPERATIONAL_EVENT") {
+    return "Operational event unavailable";
+  }
+
+  if (resourceType === "INCIDENT") {
+    return "Incident record unavailable";
+  }
+
+  return "Audit resource unavailable";
+}
+
+function auditResourceLabel(resourceType: string, label: string) {
+  if (resourceType === "SERVICE") {
+    return `Service · ${label}`;
+  }
+
+  if (resourceType === "OPERATIONAL_EVENT_INGEST_KEY") {
+    return `Event ingestion key · ${label}`;
+  }
+
+  if (resourceType === "OPERATIONAL_EVENT") {
+    return `Operational event · ${label}`;
+  }
+
+  if (resourceType === "INCIDENT") {
+    return `Incident · ${label}`;
+  }
+
+  return label;
+}
+
+async function enrichAuditResourceLabels(
+  workspaceId: string,
+  auditLogs: Array<AuditLog & {
+    actorUser: {
+      id: string;
+      name: string;
+      email: string;
+    };
+  }>,
+): Promise<SettingsAuditLogRow[]> {
+  const resourceIds = {
+    SERVICE: new Set<string>(),
+    OPERATIONAL_EVENT_INGEST_KEY: new Set<string>(),
+    OPERATIONAL_EVENT: new Set<string>(),
+    INCIDENT: new Set<string>(),
+  };
+
+  for (const entry of auditLogs) {
+    if (entry.resourceType in resourceIds) {
+      resourceIds[entry.resourceType as keyof typeof resourceIds].add(entry.resourceId);
+    }
+  }
+
+  const [services, ingestKeys, events, incidents] = await Promise.all([
+    resourceIds.SERVICE.size
+      ? prisma.service.findMany({
+          where: {
+            workspaceId,
+            id: { in: [...resourceIds.SERVICE] },
+          },
+          select: { id: true, name: true },
+        })
+      : Promise.resolve([]),
+    resourceIds.OPERATIONAL_EVENT_INGEST_KEY.size
+      ? prisma.operationalEventIngestKey.findMany({
+          where: {
+            workspaceId,
+            id: { in: [...resourceIds.OPERATIONAL_EVENT_INGEST_KEY] },
+          },
+          select: { id: true, name: true },
+        })
+      : Promise.resolve([]),
+    resourceIds.OPERATIONAL_EVENT.size
+      ? prisma.operationalEvent.findMany({
+          where: {
+            workspaceId,
+            id: { in: [...resourceIds.OPERATIONAL_EVENT] },
+          },
+          select: { id: true, message: true },
+        })
+      : Promise.resolve([]),
+    resourceIds.INCIDENT.size
+      ? prisma.incident.findMany({
+          where: {
+            workspaceId,
+            id: { in: [...resourceIds.INCIDENT] },
+          },
+          select: { id: true, title: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const labelsByType = {
+    SERVICE: new Map(services.map((service) => [service.id, service.name])),
+    OPERATIONAL_EVENT_INGEST_KEY: new Map(
+      ingestKeys.map((key) => [key.id, key.name]),
+    ),
+    OPERATIONAL_EVENT: new Map(
+      events.map((event) => [event.id, event.message]),
+    ),
+    INCIDENT: new Map(
+      incidents.map((incident) => [incident.id, incident.title]),
+    ),
+  };
+
+  return auditLogs.map((entry) => {
+    const typedResourceType = entry.resourceType as keyof typeof labelsByType;
+    const label = labelsByType[typedResourceType]?.get(entry.resourceId);
+
+    return {
+      ...entry,
+      resourceLabel: label
+        ? auditResourceLabel(entry.resourceType, label)
+        : fallbackAuditResourceLabel(entry.resourceType),
+    };
+  });
 }
 
 async function listServicesWithLatestCheck(workspaceId: string) {
@@ -858,8 +996,6 @@ export async function getSettingsReadModel() {
     prisma.auditLog.findMany({
       where: {
         workspaceId: dashboard.context.workspaceId,
-        resourceType: "SERVICE",
-        action: { in: serviceAuditActionValues },
       },
       orderBy: { createdAt: "desc" },
       take: 20,
@@ -895,12 +1031,16 @@ export async function getSettingsReadModel() {
       },
     }),
   ]);
+  const auditLogsWithResourceLabels = await enrichAuditResourceLabels(
+    dashboard.context.workspaceId,
+    auditLogs,
+  );
 
   return {
     workspace: dashboard.workspace,
     user: dashboard.context.user,
     role: dashboard.context.role,
-    auditLogs,
+    auditLogs: auditLogsWithResourceLabels,
     latestScheduledRun,
     eventIngestKeys,
     canManageEventIngestKeys: canManageWorkspace(dashboard.context),

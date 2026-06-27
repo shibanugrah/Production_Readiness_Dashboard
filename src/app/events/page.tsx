@@ -1,4 +1,5 @@
 import { AuthenticatedShell } from "@/components/dashboard/authenticated-shell";
+import { CopyValueButton } from "@/components/dashboard/copy-value-button";
 import { EventTriageControls } from "@/components/dashboard/event-triage-controls";
 import { formatRelativeTime, formatTimestamp } from "@/components/dashboard/format";
 import {
@@ -53,6 +54,10 @@ function payloadPreview(value: unknown) {
   return serialized.length > 2_000
     ? `${serialized.slice(0, 2_000)}\n... truncated`
     : serialized;
+}
+
+function shortIdentifier(value: string) {
+  return value.length <= 18 ? value : `${value.slice(0, 8)}...${value.slice(-6)}`;
 }
 
 export default async function EventsPage({
@@ -245,12 +250,6 @@ export default async function EventsPage({
                     </dd>
                   </div>
                   <div>
-                    <dt className="font-semibold text-slate-500">Idempotency key</dt>
-                    <dd className="mt-1 break-all font-medium text-slate-900">
-                      {model.selectedEvent.idempotencyKey}
-                    </dd>
-                  </div>
-                  <div>
                     <dt className="font-semibold text-slate-500">Incident</dt>
                     <dd className="mt-1 font-medium text-slate-900">
                       {model.selectedEvent.incident ? (
@@ -285,6 +284,25 @@ export default async function EventsPage({
                     {model.selectedEvent.errorMessage}
                   </div>
                 ) : null}
+                <details className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                  <summary className="cursor-pointer text-sm font-semibold text-slate-900">
+                    Technical metadata
+                  </summary>
+                  <dl className="mt-3 grid gap-3 text-sm">
+                    <div>
+                      <dt className="font-semibold text-slate-500">Idempotency key</dt>
+                      <dd className="mt-1 flex min-w-0 items-center gap-2">
+                        <code
+                          title={model.selectedEvent.idempotencyKey}
+                          className="min-w-0 truncate rounded bg-white px-2 py-1 text-xs font-semibold text-slate-700"
+                        >
+                          {shortIdentifier(model.selectedEvent.idempotencyKey)}
+                        </code>
+                        <CopyValueButton value={model.selectedEvent.idempotencyKey} />
+                      </dd>
+                    </div>
+                  </dl>
+                </details>
                 <div className="border-t border-slate-200 pt-4">
                   <p className="mb-3 text-sm font-semibold text-slate-950">
                     Triage
@@ -301,9 +319,14 @@ export default async function EventsPage({
                     </div>
                   )}
                 </div>
-                <pre className="max-h-80 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-700">
-                  {payloadPreview(model.selectedEvent.metadata)}
-                </pre>
+                <div>
+                  <p className="mb-2 text-sm font-semibold text-slate-950">
+                    Safe payload preview
+                  </p>
+                  <pre className="max-h-56 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-700">
+                    {payloadPreview(model.selectedEvent.metadata)}
+                  </pre>
+                </div>
               </div>
             ) : (
               <EmptyState
