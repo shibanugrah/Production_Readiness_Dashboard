@@ -85,11 +85,11 @@ export default async function ServicesPage({
           <CompactTable
             minWidth="1120px"
             columns={[
-              { key: "service", header: "Service", width: "19%" },
+              { key: "service", header: "Service", width: "21%" },
               { key: "environment", header: "Environment", width: "11%" },
               { key: "status", header: "Status", width: "10%" },
-              { key: "baseUrl", header: "Base URL", width: "18%" },
-              { key: "healthPath", header: "Health Path", width: "12%" },
+              { key: "baseUrl", header: "Base URL", width: "16%" },
+              { key: "healthPath", header: "Health Path", width: "11%" },
               { key: "expectedVersion", header: "Expected Version", width: "11%" },
               { key: "lastChecked", header: "Last Checked", width: "10%" },
               { key: "lastHealthy", header: "Last Healthy", width: "10%" },
@@ -106,7 +106,9 @@ export default async function ServicesPage({
               service: (
                 <div className="min-w-0">
                   <TextLink href={`/services/${service.id}`}>
-                    {service.name}
+                    <span title={service.name} className="block truncate font-semibold">
+                      {service.name}
+                    </span>
                   </TextLink>
                   <TruncatedText value={`${service.slug} / ${service.baseUrl}`} className="mt-0.5 text-xs font-medium text-slate-500" />
                   {!service.isActive ? (

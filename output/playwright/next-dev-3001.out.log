@@ -1,0 +1,67 @@
+
+> production-readiness-dashboard@0.1.0 dev
+> next dev -p 3001
+
+▲ Next.js 16.2.9 (Turbopack)
+- Local:         http://localhost:3001
+- Network:       http://192.168.1.8:3001
+- Environments: .env
+✓ Ready in 2.0s
+
+ GET / 200 in 844ms (next.js: 359ms, application-code: 484ms)
+ GET /signin 200 in 580ms (next.js: 81ms, application-code: 498ms)
+ POST /signin 303 in 672ms (next.js: 15ms, application-code: 657ms)
+  └─ ƒ signInAction({}) in 203ms src/server/auth/actions.ts
+ GET / 200 in 647ms (next.js: 12ms, application-code: 635ms)
+ GET / 200 in 1179ms (next.js: 24ms, application-code: 1155ms)
+ GET /services 200 in 2.2s (next.js: 1538ms, application-code: 667ms)
+ GET /events 200 in 1593ms (next.js: 917ms, application-code: 676ms)
+ GET /incidents 200 in 1550ms (next.js: 1075ms, application-code: 475ms)
+ GET /readiness 200 in 1277ms (next.js: 826ms, application-code: 452ms)
+ GET /services 200 in 546ms (next.js: 13ms, application-code: 532ms)
+✓ Compiled in 165ms
+✓ Compiled in 187ms
+ GET /signin 200 in 328ms (next.js: 125ms, application-code: 203ms)
+ POST /signin 303 in 325ms (next.js: 8ms, application-code: 317ms)
+  └─ ƒ signInAction({}) in 76ms src/server/auth/actions.ts
+ GET / 200 in 355ms (next.js: 37ms, application-code: 319ms)
+ GET / 200 in 258ms (next.js: 8ms, application-code: 250ms)
+ GET /services 200 in 273ms (next.js: 13ms, application-code: 260ms)
+ GET /events 200 in 665ms (next.js: 117ms, application-code: 548ms)
+ GET /incidents 200 in 211ms (next.js: 20ms, application-code: 191ms)
+ GET /readiness 200 in 111ms (next.js: 27ms, application-code: 84ms)
+ GET /services 200 in 247ms (next.js: 12ms, application-code: 235ms)
+ GET /services/cmqvx2wik00029ozdk8ukv59m 200 in 650ms (next.js: 25ms, application-code: 625ms)
+✓ Compiled in 96ms
+ GET /signin 200 in 397ms (next.js: 133ms, application-code: 264ms)
+ POST /signin 303 in 868ms (next.js: 9ms, application-code: 858ms)
+  └─ ƒ signInAction({}) in 118ms src/server/auth/actions.ts
+ GET / 200 in 1390ms (next.js: 95ms, application-code: 1295ms)
+ GET / 200 in 1183ms (next.js: 84ms, application-code: 1098ms)
+ GET /services 200 in 457ms (next.js: 42ms, application-code: 414ms)
+ GET /events 200 in 599ms (next.js: 155ms, application-code: 444ms)
+ GET /incidents 200 in 391ms (next.js: 45ms, application-code: 347ms)
+ GET /readiness 200 in 336ms (next.js: 68ms, application-code: 268ms)
+ GET /services 200 in 508ms (next.js: 10ms, application-code: 499ms)
+ GET /services/cmqvx2wik00029ozdk8ukv59m 200 in 761ms (next.js: 54ms, application-code: 707ms)
+ GET /signin 200 in 105ms (next.js: 5ms, application-code: 101ms)
+ POST /signin 303 in 315ms (next.js: 6ms, application-code: 309ms)
+  └─ ƒ signInAction({}) in 106ms src/server/auth/actions.ts
+ GET / 200 in 391ms (next.js: 8ms, application-code: 383ms)
+ GET / 200 in 288ms (next.js: 5ms, application-code: 284ms)
+ GET /services 200 in 379ms (next.js: 7ms, application-code: 372ms)
+ GET /events 200 in 244ms (next.js: 5ms, application-code: 238ms)
+ GET /incidents 200 in 198ms (next.js: 6ms, application-code: 192ms)
+ GET /services 200 in 260ms (next.js: 7ms, application-code: 253ms)
+ GET /events 200 in 239ms (next.js: 7ms, application-code: 232ms)
+ GET /incidents 200 in 179ms (next.js: 7ms, application-code: 172ms)
+ GET /signin 200 in 75ms (next.js: 5ms, application-code: 70ms)
+ POST /signin 303 in 285ms (next.js: 7ms, application-code: 277ms)
+  └─ ƒ signInAction({}) in 98ms src/server/auth/actions.ts
+ GET / 200 in 400ms (next.js: 5ms, application-code: 395ms)
+ GET /services 200 in 322ms (next.js: 7ms, application-code: 315ms)
+ GET /signin 200 in 98ms (next.js: 5ms, application-code: 93ms)
+ POST /signin 303 in 311ms (next.js: 7ms, application-code: 303ms)
+  └─ ƒ signInAction({}) in 89ms src/server/auth/actions.ts
+ GET / 200 in 417ms (next.js: 5ms, application-code: 413ms)
+ GET /services 200 in 304ms (next.js: 7ms, application-code: 298ms)

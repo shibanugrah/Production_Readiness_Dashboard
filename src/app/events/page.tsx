@@ -116,73 +116,61 @@ export default async function EventsPage({
           />
         </div>
 
-        <Panel title="Filters">
-          <form className="grid gap-3 md:grid-cols-5">
-            <label className="text-sm font-semibold text-slate-700">
-              Type
-              <select name="type" defaultValue={model.filters.type} className="mt-2 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium">
+        <form className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm shadow-slate-100 md:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))_140px]">
+            <label className="sr-only" htmlFor="event-type-filter">Type</label>
+              <select id="event-type-filter" name="type" defaultValue={model.filters.type} className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium shadow-sm">
                 <option value="all">All types</option>
                 {model.eventTypes.map((type) => (
                   <option key={type} value={type}>{type}</option>
                 ))}
               </select>
-            </label>
-            <label className="text-sm font-semibold text-slate-700">
-              Severity
-              <select name="severity" defaultValue={model.filters.severity} className="mt-2 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium">
+            <label className="sr-only" htmlFor="event-severity-filter">Severity</label>
+              <select id="event-severity-filter" name="severity" defaultValue={model.filters.severity} className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium shadow-sm">
                 <option value="all">All severities</option>
                 {model.severities.map((severity) => (
                   <option key={severity} value={severity}>{severity}</option>
                 ))}
               </select>
-            </label>
-            <label className="text-sm font-semibold text-slate-700">
-              Source
-              <select name="source" defaultValue={model.filters.source} className="mt-2 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium">
+            <label className="sr-only" htmlFor="event-source-filter">Source</label>
+              <select id="event-source-filter" name="source" defaultValue={model.filters.source} className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium shadow-sm">
                 <option value="all">All sources</option>
                 {model.sources.map((source) => (
                   <option key={source} value={source}>{source}</option>
                 ))}
               </select>
-            </label>
-            <label className="text-sm font-semibold text-slate-700">
-              Status
-              <select name="status" defaultValue={model.filters.status} className="mt-2 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium">
+            <label className="sr-only" htmlFor="event-status-filter">Status</label>
+              <select id="event-status-filter" name="status" defaultValue={model.filters.status} className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium shadow-sm">
                 <option value="all">All statuses</option>
                 {model.statuses.map((status) => (
                   <option key={status} value={status}>{status}</option>
                 ))}
               </select>
-            </label>
-            <label className="text-sm font-semibold text-slate-700">
-              Range
-              <select name="range" defaultValue={model.filters.range} className="mt-2 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium">
+            <label className="sr-only" htmlFor="event-range-filter">Range</label>
+              <select id="event-range-filter" name="range" defaultValue={model.filters.range} className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium shadow-sm">
                 <option value="all">All time</option>
                 <option value="24h">Last 24 hours</option>
                 <option value="7d">Last 7 days</option>
               </select>
-            </label>
-            <div className="md:col-span-5">
-              <button type="submit" className="inline-flex h-10 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm shadow-blue-100 hover:bg-blue-700">
+            <div>
+              <button type="submit" className="inline-flex h-10 w-full items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm shadow-blue-100 hover:bg-blue-700">
                 Apply filters
               </button>
             </div>
           </form>
-        </Panel>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)]">
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)]">
           <Panel title="Operational Events">
             <CompactTable
-              minWidth="980px"
+              minWidth="100%"
               columns={[
-                { key: "time", header: "Timestamp", width: "14%" },
-                { key: "source", header: "Source", width: "15%" },
-                { key: "type", header: "Type", width: "12%" },
-                { key: "service", header: "Service", width: "16%" },
+                { key: "event", header: "Event", width: "22%" },
+                { key: "service", header: "Service", width: "14%" },
+                { key: "type", header: "Type", width: "13%" },
                 { key: "severity", header: "Severity", width: "10%" },
                 { key: "status", header: "Status", width: "10%" },
-                { key: "message", header: "Message", width: "15%" },
-                { key: "reference", header: "Reference", width: "8%" },
+                { key: "time", header: "Occurred", width: "11%" },
+                { key: "source", header: "Source", width: "11%" },
+                { key: "reference", header: "Action", width: "9%" },
               ]}
               empty={
                 <EmptyState
@@ -191,17 +179,22 @@ export default async function EventsPage({
                 />
               }
               rows={model.events.map((event) => ({
-                time: <span>{formatRelativeTime(event.occurredAt)}</span>,
-                source: <TruncatedText value={event.source} className="font-semibold text-slate-800" />,
-                type: <span>{event.type}</span>,
+                event: (
+                  <div className="min-w-0">
+                    <TruncatedText value={event.message} className="font-semibold text-slate-900" />
+                    <TruncatedText value={event.errorMessage ?? event.externalReference ?? "No reference"} className="text-xs font-medium text-slate-500" />
+                  </div>
+                ),
                 service: event.service ? (
                   <TextLink href={`/services/${event.service.id}`}>{event.service.name}</TextLink>
                 ) : (
                   <span className="text-slate-500">None</span>
                 ),
+                type: <span>{event.type}</span>,
                 severity: <Badge value={event.severity} />,
                 status: <Badge value={event.status} />,
-                message: <TruncatedText value={event.errorMessage ?? event.message} />,
+                time: <span>{formatRelativeTime(event.occurredAt)}</span>,
+                source: <TruncatedText value={event.source} className="font-semibold text-slate-800" />,
                 reference: event.externalReference ? (
                   <TextLink href={`/events?eventId=${event.id}`}>
                     View

@@ -102,42 +102,34 @@ export default async function IncidentsPage({
           />
         </div>
 
-        <Panel title="Filters">
-          <form className="grid gap-3 md:grid-cols-3">
-            <label className="text-sm font-semibold text-slate-700">
-              Status
-              <select name="status" defaultValue={model.filters.status} className="mt-2 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium">
+        <form className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm shadow-slate-100 md:grid-cols-[1fr_1fr_1fr_140px]">
+            <label className="sr-only" htmlFor="incident-status-filter">Status</label>
+              <select id="incident-status-filter" name="status" defaultValue={model.filters.status} className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium shadow-sm">
                 <option value="all">All statuses</option>
                 {model.statuses.map((status) => (
                   <option key={status} value={status}>{status}</option>
                 ))}
               </select>
-            </label>
-            <label className="text-sm font-semibold text-slate-700">
-              Severity
-              <select name="severity" defaultValue={model.filters.severity} className="mt-2 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium">
+            <label className="sr-only" htmlFor="incident-severity-filter">Severity</label>
+              <select id="incident-severity-filter" name="severity" defaultValue={model.filters.severity} className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium shadow-sm">
                 <option value="all">All severities</option>
                 {model.severities.map((severity) => (
                   <option key={severity} value={severity}>{severity}</option>
                 ))}
               </select>
-            </label>
-            <label className="text-sm font-semibold text-slate-700">
-              Resolved range
-              <select name="range" defaultValue={model.filters.range} className="mt-2 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium">
+            <label className="sr-only" htmlFor="incident-range-filter">Resolved range</label>
+              <select id="incident-range-filter" name="range" defaultValue={model.filters.range} className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium shadow-sm">
                 <option value="24h">Last 24 hours</option>
                 <option value="7d">Last 7 days</option>
               </select>
-            </label>
-            <div className="md:col-span-3">
-              <button type="submit" className="inline-flex h-10 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm shadow-blue-100 hover:bg-blue-700">
+            <div>
+              <button type="submit" className="inline-flex h-10 w-full items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm shadow-blue-100 hover:bg-blue-700">
                 Apply filters
               </button>
             </div>
           </form>
-        </Panel>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)]">
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)]">
           <Panel title="Incident Records">
             <CompactTable
               minWidth="960px"

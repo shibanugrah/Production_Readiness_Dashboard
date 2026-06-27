@@ -26,7 +26,7 @@ export function ServiceStatusCard({ service }: { service: DashboardServiceRow })
         </div>
         <StatusBadge status={service.displayStatus} />
       </div>
-      <div className="mt-5 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
+      <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
         <div>
           <p className="text-sm font-medium leading-5 text-slate-500">Latency</p>
           <p className={`mt-1 text-[16px] font-semibold leading-6 ${statusTone(service.displayStatus)}`}>
@@ -75,12 +75,12 @@ export function SegmentedHealthHistoryStrip({
   const orderedChecks = [...checks].reverse().slice(-36);
 
   return (
-    <div className={`${compact ? "mt-5" : ""} flex h-7 items-end gap-1`} aria-label="Recent check status history">
+    <div className={`${compact ? "mt-5" : ""} flex h-7 items-end gap-1 overflow-hidden`} aria-label="Recent check status history">
       {orderedChecks.map((check) => (
         <span
           key={check.id}
           title={`${check.status} at ${check.checkedAt.toISOString()}`}
-          className={`h-6 min-w-[3px] flex-1 rounded-full ${getCheckColor(check.status)}`}
+          className={`h-6 w-[4px] shrink-0 rounded-full ${getCheckColor(check.status)}`}
         />
       ))}
     </div>

@@ -59,8 +59,8 @@ export function MetricCard({
         </span>
         <div className="min-w-0">
           <p className="text-[14px] font-medium leading-5 text-slate-700">{label}</p>
-          <div className="mt-1 truncate text-[28px] font-bold leading-[32px] text-slate-950">{value}</div>
-          {detail ? <p className="mt-2 truncate text-xs font-medium leading-4 text-slate-500">{detail}</p> : null}
+          <div className="mt-1 text-[27px] font-bold leading-[31px] text-slate-950">{value}</div>
+          {detail ? <p className="mt-2 line-clamp-1 text-xs font-medium leading-4 text-slate-500">{detail}</p> : null}
         </div>
       </div>
     </div>
@@ -75,7 +75,7 @@ export function EmptyState({
   description: string;
 }) {
   return (
-    <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+    <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5 text-center">
       <p className="text-sm font-semibold text-slate-900">{title}</p>
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600">
         {description}
@@ -127,8 +127,8 @@ export function Panel({
 }) {
   return (
     <section className={`min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm shadow-slate-100 ${className}`}>
-      <div className="flex h-[52px] items-center justify-between border-b border-slate-200 px-4">
-        <h2 className="text-[16px] font-semibold leading-6 text-slate-950">{title}</h2>
+      <div className="flex min-h-12 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+        <h2 className="text-[15px] font-semibold leading-5 text-slate-950">{title}</h2>
         {action}
       </div>
       <div className="p-4">{children}</div>
@@ -201,11 +201,11 @@ export function CompactTable({
           </thead>
           <tbody>
             {rows.map((row, rowIndex) => (
-              <tr key={rowIndex} className="h-[54px] hover:bg-slate-50">
+              <tr key={rowIndex} className="h-[50px] hover:bg-slate-50">
                 {columns.map((column) => (
                   <td
                     key={column.key}
-                    className={`border-b border-slate-100 px-3 py-3 align-middle text-sm leading-5 text-slate-700 ${column.className ?? ""}`}
+                    className={`border-b border-slate-100 px-3 py-2.5 align-middle text-sm leading-5 text-slate-700 ${column.className ?? ""}`}
                   >
                     {row[column.key]}
                   </td>

@@ -196,7 +196,7 @@ export function AddServiceDrawer({
             className="absolute inset-0 bg-slate-950/25"
             onClick={() => setOpen(false)}
           />
-          <aside className="absolute right-0 top-0 flex h-full w-full flex-col border-l border-slate-200 bg-white shadow-xl sm:w-[390px]">
+          <aside className="absolute right-0 top-0 flex h-full w-full flex-col border-l border-slate-200 bg-white shadow-xl sm:w-[360px]">
             <div className="flex h-16 items-start justify-between border-b border-slate-200 px-5 py-4">
               <div>
                 <h2 id="add-service-title" className="text-[20px] font-bold leading-6 text-slate-950">
@@ -217,7 +217,7 @@ export function AddServiceDrawer({
             </div>
             <form action={formAction} className="flex min-h-0 flex-1 flex-col">
               <input type="hidden" name="returnPath" value="/services" />
-              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5">
                 <FormField label="Service name">
                   <input
                     ref={firstInputRef}

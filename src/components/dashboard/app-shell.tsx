@@ -101,10 +101,18 @@ function ShellIcon({
 
 function ProductMark() {
   return (
-    <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-blue-600 text-white shadow-sm shadow-blue-200">
-      <svg viewBox="0 0 32 32" aria-hidden="true" className="h-8 w-8">
-        <path d="M16 3 27 8v8.2C27 22.3 22.4 27.5 16 29 9.6 27.5 5 22.3 5 16.2V8z" fill="#EEF2FF" />
-        <path d="M16 8 22 10.8v4.7c0 3.2-2.4 5.9-6 6.9-3.6-1-6-3.7-6-6.9v-4.7z" fill="#2563EB" />
+    <span className="relative flex h-11 w-11 shrink-0 items-center justify-center">
+      <svg viewBox="0 0 44 44" aria-hidden="true" className="h-11 w-11 drop-shadow-sm">
+        <defs>
+          <linearGradient id="brand-mark-gradient" x1="8" x2="36" y1="6" y2="39" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#0EA5E9" />
+            <stop offset="0.55" stopColor="#2563EB" />
+            <stop offset="1" stopColor="#7C3AED" />
+          </linearGradient>
+        </defs>
+        <path d="M22 3 38 10.4v12.4c0 9.2-6.5 15.7-16 18.2C12.5 38.5 6 32 6 22.8V10.4z" fill="url(#brand-mark-gradient)" />
+        <path d="M22 11.5 30 15.2v6.2c0 4.8-3.3 8-8 9.4-4.7-1.4-8-4.6-8-9.4v-6.2z" fill="white" fillOpacity="0.92" />
+        <path d="M22 16.5 26 18.4v3.1c0 2.4-1.6 4-4 4.7-2.4-.7-4-2.3-4-4.7v-3.1z" fill="#2563EB" />
       </svg>
     </span>
   );
@@ -121,13 +129,13 @@ function SidebarContent({
 
   return (
     <div className="flex h-full flex-col bg-white">
-      <Link href="/" onClick={onNavigate} className="flex items-start gap-3 px-5 pb-6 pt-6">
+      <Link href="/" onClick={onNavigate} className="flex items-start gap-3 px-5 pb-5 pt-5">
         <ProductMark />
         <span>
-          <span className="block text-[18px] font-bold leading-[20px] text-slate-950">
+          <span className="block text-[18px] font-bold leading-[19px] text-slate-950">
             Production
           </span>
-          <span className="block text-[18px] font-bold leading-[20px] text-slate-950">
+          <span className="block text-[18px] font-bold leading-[19px] text-slate-950">
             Readiness
           </span>
           <span className="mt-1 block text-[13px] font-medium leading-4 text-blue-600">
@@ -178,7 +186,9 @@ function SidebarContent({
         </div>
         <form action={signOutAction}>
           <button className="flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-950">
-            <span aria-hidden="true" className="text-lg leading-none">-</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
+              <path d="m11 5-7 7 7 7M4 12h16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
             Sign out
           </button>
         </form>
@@ -192,10 +202,8 @@ function SidebarContent({
 }
 
 function TopBar({
-  user,
   canRunLocalChecks,
 }: {
-  user: AppShellUser;
   canRunLocalChecks: boolean;
 }) {
   const pathname = usePathname();
@@ -230,9 +238,6 @@ function TopBar({
               3
             </span>
           </div>
-          <span className="hidden h-10 items-center rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm sm:inline-flex">
-            {user.role === "VIEWER" ? "Read-only" : "Operator"}
-          </span>
           {canRunLocalChecks ? (
             <RunChecksControl
               enabled
@@ -305,7 +310,7 @@ export function AppShell({
           <MobileTopBar openDrawer={() => setDrawerOpen(true)} />
         </div>
         <div className="hidden lg:block">
-          <TopBar user={user} canRunLocalChecks={canRunLocalChecks} />
+          <TopBar canRunLocalChecks={canRunLocalChecks} />
         </div>
         <main className="mx-auto w-full max-w-[1328px] overflow-x-hidden px-4 py-5 md:px-7">
           {children}

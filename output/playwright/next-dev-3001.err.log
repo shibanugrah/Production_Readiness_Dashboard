@@ -1,0 +1,3 @@
+(node:12920) ExperimentalWarning: CommonJS module C:\Users\shiba_2\Documents\Production_Readiness_Dashboard\node_modules\tailwindcss\lib\lib\load-config.js is loading ES Module C:\Users\shiba_2\Documents\Production_Readiness_Dashboard\tailwind.config.ts using require().
+Support for loading ES Module in require() is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
