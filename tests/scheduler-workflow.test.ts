@@ -75,9 +75,10 @@ describe("n8n scheduler workflow template", () => {
     });
 
     for (const file of clientFiles) {
-      expect(readFileSync(file, "utf8")).not.toContain(
-        "INTERNAL_HEALTH_CHECK_SECRET",
-      );
+      const source = readFileSync(file, "utf8");
+      expect(source).not.toContain("INTERNAL_HEALTH_CHECK_SECRET");
+      expect(source).not.toContain("secretHash");
+      expect(source).not.toContain("prd_evt_");
     }
   });
 });

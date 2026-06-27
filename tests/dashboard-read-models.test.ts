@@ -1,6 +1,9 @@
 import {
   HealthCheckRunStatus,
   HealthCheckRunTriggerType,
+  OperationalEventSeverity,
+  OperationalEventStatus,
+  OperationalEventType,
   ServiceStatus,
 } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
@@ -9,6 +12,7 @@ import {
   calculateReadinessState,
   calculateStatusCounts,
   getDisplayServiceStatus,
+  getEventsReadModel,
   getOverviewSummary,
   getSchedulerMonitoringState,
   getServiceDetailReadModel,
@@ -35,6 +39,10 @@ vi.mock("@/server/db", () => ({
       findMany: vi.fn(),
     },
     operationalEvent: {
+      findMany: vi.fn(),
+      count: vi.fn(),
+    },
+    operationalEventIngestKey: {
       findMany: vi.fn(),
     },
   },
@@ -241,6 +249,7 @@ describe("dashboard read model calculations", () => {
       })
       .mockResolvedValueOnce(null);
     vi.mocked(prisma.healthCheckRun.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.operationalEvent.findMany).mockResolvedValue([]);
 
     const summary = await getOverviewSummary();
 
@@ -267,6 +276,58 @@ describe("dashboard read model calculations", () => {
     expect(prisma.healthCheckRun.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { workspaceId: "workspace_a" },
+      }),
+    );
+  });
+
+  it("keeps operational events workspace-scoped", async () => {
+    vi.mocked(prisma.operationalEvent.findMany).mockClear();
+    vi.mocked(prisma.operationalEvent.count).mockClear();
+    vi.mocked(getCurrentWorkspaceContext).mockResolvedValue({
+      workspaceId: "workspace_a",
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        name: "Demo Owner",
+        email: "owner@example.local",
+      },
+      workspace: {
+        id: "workspace_a",
+        name: "Workspace A",
+        slug: "workspace-a",
+      },
+      role: "OWNER",
+    });
+    vi.mocked(prisma.operationalEvent.findMany)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ source: "local-demo" } as never]);
+    vi.mocked(prisma.operationalEvent.count).mockResolvedValue(0);
+
+    const model = await getEventsReadModel({
+      source: "local-demo",
+      severity: OperationalEventSeverity.ERROR,
+      status: OperationalEventStatus.OPEN,
+      type: OperationalEventType.JOB,
+    });
+
+    expect(model?.events).toEqual([]);
+    expect(prisma.operationalEvent.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          workspaceId: "workspace_a",
+          source: "local-demo",
+          severity: OperationalEventSeverity.ERROR,
+          status: OperationalEventStatus.OPEN,
+          type: OperationalEventType.JOB,
+        }),
+      }),
+    );
+    expect(prisma.operationalEvent.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          workspaceId: "workspace_a",
+        }),
       }),
     );
   });

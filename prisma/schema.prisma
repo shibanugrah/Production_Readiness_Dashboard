@@ -60,6 +60,10 @@ enum OperationalEventSeverity {
   ERROR
 }
 
+enum OperationalEventStatus {
+  OPEN
+}
+
 model AppSetting {
   key       String   @id
   value     String?
@@ -68,31 +72,33 @@ model AppSetting {
 }
 
 model Workspace {
-  id                  String               @id @default(cuid())
-  name                String
-  slug                String               @unique
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  members             WorkspaceMember[]
-  services            Service[]
-  healthChecks        HealthCheck[]
-  healthCheckRuns     HealthCheckRun[]
-  healthCheckRunLease HealthCheckRunLease?
-  operationalEvents   OperationalEvent[]
-  auditLogs           AuditLog[]
+  id                         String                      @id @default(cuid())
+  name                       String
+  slug                       String                      @unique
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  members                    WorkspaceMember[]
+  services                   Service[]
+  healthChecks               HealthCheck[]
+  healthCheckRuns            HealthCheckRun[]
+  healthCheckRunLease        HealthCheckRunLease?
+  operationalEvents          OperationalEvent[]
+  operationalEventIngestKeys OperationalEventIngestKey[]
+  auditLogs                  AuditLog[]
 }
 
 model User {
-  id                       String            @id @default(cuid())
-  name                     String
-  email                    String            @unique
-  passwordHash             String?
-  createdAt                DateTime          @default(now())
-  updatedAt                DateTime          @updatedAt
-  memberships              WorkspaceMember[]
-  sessions                 Session[]
-  auditLogs                AuditLog[]
-  requestedHealthCheckRuns HealthCheckRun[]
+  id                                String                      @id @default(cuid())
+  name                              String
+  email                             String                      @unique
+  passwordHash                      String?
+  createdAt                         DateTime                    @default(now())
+  updatedAt                         DateTime                    @updatedAt
+  memberships                       WorkspaceMember[]
+  sessions                          Session[]
+  auditLogs                         AuditLog[]
+  requestedHealthCheckRuns          HealthCheckRun[]
+  createdOperationalEventIngestKeys OperationalEventIngestKey[]
 }
 
 model Session {
@@ -209,19 +215,49 @@ model HealthCheckRunLease {
 }
 
 model OperationalEvent {
-  id          String                   @id @default(cuid())
-  workspaceId String
-  serviceId   String?
-  type        OperationalEventType
-  severity    OperationalEventSeverity @default(INFO)
-  message     String
-  metadata    Json?
-  occurredAt  DateTime                 @default(now())
-  createdAt   DateTime                 @default(now())
-  workspace   Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  service     Service?                 @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  id                String                   @id @default(cuid())
+  workspaceId       String
+  serviceId         String?
+  source            String                   @default("legacy")
+  type              OperationalEventType
+  severity          OperationalEventSeverity @default(INFO)
+  status            OperationalEventStatus   @default(OPEN)
+  message           String
+  externalReference String?
+  errorMessage      String?
+  metadata          Json?
+  payloadHash       String                   @default("legacy")
+  idempotencyKey    String                   @default(cuid())
+  occurredAt        DateTime                 @default(now())
+  createdAt         DateTime                 @default(now())
+  workspace         Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  service           Service?                 @relation(fields: [serviceId], references: [id], onDelete: SetNull)
 
+  @@unique([workspaceId, source, idempotencyKey])
   @@index([workspaceId, occurredAt])
+  @@index([workspaceId, status, severity, occurredAt])
+  @@index([workspaceId, source, occurredAt])
+}
+
+model OperationalEventIngestKey {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  name            String
+  source          String
+  lookupId        String    @unique
+  secretHash      String
+  isActive        Boolean   @default(true)
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+  createdByUserId String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdByUser   User      @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, source, isActive])
+  @@index([workspaceId, createdAt])
+  @@index([createdByUserId])
 }
 
 model AuditLog {

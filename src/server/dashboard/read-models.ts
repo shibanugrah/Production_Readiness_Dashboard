@@ -5,6 +5,10 @@ import {
   HealthCheckRunTriggerType,
   HealthCheckStatus,
   OperationalEvent,
+  OperationalEventIngestKey,
+  OperationalEventSeverity,
+  OperationalEventStatus,
+  OperationalEventType,
   Service,
   ServiceEnvironment,
   ServiceStatus,
@@ -12,6 +16,7 @@ import {
 
 import { prisma } from "@/server/db";
 import { getCurrentWorkspaceContext } from "@/server/auth/context";
+import { canManageWorkspace } from "@/server/auth/permissions";
 import { serviceAuditActions } from "@/server/services/management";
 
 const recentRangeHours = 24;
@@ -65,6 +70,22 @@ export type RecentFailedCheck = Pick<
 > & {
   service: Pick<Service, "id" | "name" | "slug" | "environment">;
 };
+
+export type OperationalEventWithService = OperationalEvent & {
+  service: Pick<Service, "id" | "name" | "slug" | "environment"> | null;
+};
+
+export type EventIngestKeyMetadataRow = Pick<
+  OperationalEventIngestKey,
+  | "id"
+  | "name"
+  | "source"
+  | "lookupId"
+  | "isActive"
+  | "lastUsedAt"
+  | "revokedAt"
+  | "createdAt"
+>;
 
 export type SchedulerRunEvidence = Pick<
   HealthCheckRun,
@@ -273,6 +294,16 @@ export async function getOverviewSummary() {
       where: { workspaceId: dashboard.context.workspaceId },
       orderBy: { occurredAt: "desc" },
       take: 5,
+      include: {
+        service: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            environment: true,
+          },
+        },
+      },
     }),
     prisma.healthCheckRun.findFirst({
       where: {
@@ -370,6 +401,145 @@ export async function getServiceListReadModel(filters: {
   };
 }
 
+export async function getEventsReadModel(filters: {
+  type?: string;
+  severity?: string;
+  source?: string;
+  status?: string;
+  range?: string;
+  eventId?: string;
+} = {}) {
+  const dashboard = await getDashboardContext();
+
+  if (!dashboard) {
+    return null;
+  }
+
+  const since =
+    filters.range === "7d"
+      ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1_000)
+      : filters.range === "24h"
+        ? new Date(Date.now() - 24 * 60 * 60 * 1_000)
+        : null;
+  const where = {
+    workspaceId: dashboard.context.workspaceId,
+    ...(filters.type &&
+    filters.type !== "all" &&
+    Object.values(OperationalEventType).includes(
+      filters.type as OperationalEventType,
+    )
+      ? { type: filters.type as OperationalEventType }
+      : {}),
+    ...(filters.severity &&
+    filters.severity !== "all" &&
+    Object.values(OperationalEventSeverity).includes(
+      filters.severity as OperationalEventSeverity,
+    )
+      ? { severity: filters.severity as OperationalEventSeverity }
+      : {}),
+    ...(filters.status &&
+    filters.status !== "all" &&
+    Object.values(OperationalEventStatus).includes(
+      filters.status as OperationalEventStatus,
+    )
+      ? { status: filters.status as OperationalEventStatus }
+      : {}),
+    ...(filters.source && filters.source !== "all"
+      ? { source: filters.source }
+      : {}),
+    ...(since ? { occurredAt: { gte: since } } : {}),
+  };
+
+  const [events, openCount, highSeverityCount, recentFailuresCount, sources] =
+    await Promise.all([
+      prisma.operationalEvent.findMany({
+        where,
+        orderBy: { occurredAt: "desc" },
+        take: 50,
+        include: {
+          service: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              environment: true,
+            },
+          },
+        },
+      }),
+      prisma.operationalEvent.count({
+        where: {
+          workspaceId: dashboard.context.workspaceId,
+          status: OperationalEventStatus.OPEN,
+        },
+      }),
+      prisma.operationalEvent.count({
+        where: {
+          workspaceId: dashboard.context.workspaceId,
+          severity: OperationalEventSeverity.ERROR,
+        },
+      }),
+      prisma.operationalEvent.count({
+        where: {
+          workspaceId: dashboard.context.workspaceId,
+          severity: OperationalEventSeverity.ERROR,
+          occurredAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1_000) },
+        },
+      }),
+      prisma.operationalEvent.findMany({
+        where: { workspaceId: dashboard.context.workspaceId },
+        select: { source: true },
+        distinct: ["source"],
+        orderBy: { source: "asc" },
+      }),
+    ]);
+
+  const selectedEvent =
+    filters.eventId && events.some((event) => event.id === filters.eventId)
+      ? events.find((event) => event.id === filters.eventId) ?? null
+      : filters.eventId
+        ? await prisma.operationalEvent.findFirst({
+            where: {
+              id: filters.eventId,
+              workspaceId: dashboard.context.workspaceId,
+            },
+            include: {
+              service: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                  environment: true,
+                },
+              },
+            },
+          })
+        : events[0] ?? null;
+
+  return {
+    workspace: dashboard.workspace,
+    user: dashboard.context.user,
+    role: dashboard.context.role,
+    events,
+    selectedEvent,
+    openCount,
+    highSeverityCount,
+    recentFailuresCount,
+    sourceCount: sources.length,
+    sources: sources.map((item) => item.source),
+    filters: {
+      type: filters.type ?? "all",
+      severity: filters.severity ?? "all",
+      status: filters.status ?? "all",
+      source: filters.source ?? "all",
+      range: filters.range ?? "all",
+    },
+    eventTypes: Object.values(OperationalEventType),
+    severities: Object.values(OperationalEventSeverity),
+    statuses: Object.values(OperationalEventStatus),
+  };
+}
+
 export async function getServiceDetailReadModel(serviceId: string) {
   const dashboard = await getDashboardContext();
 
@@ -440,7 +610,7 @@ export async function getSettingsReadModel() {
     return null;
   }
 
-  const [auditLogs, latestScheduledRun] = await Promise.all([
+  const [auditLogs, latestScheduledRun, eventIngestKeys] = await Promise.all([
     prisma.auditLog.findMany({
       where: {
         workspaceId: dashboard.context.workspaceId,
@@ -466,6 +636,20 @@ export async function getSettingsReadModel() {
       },
       orderBy: { startedAt: "desc" },
     }),
+    prisma.operationalEventIngestKey.findMany({
+      where: { workspaceId: dashboard.context.workspaceId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        source: true,
+        lookupId: true,
+        isActive: true,
+        lastUsedAt: true,
+        revokedAt: true,
+        createdAt: true,
+      },
+    }),
   ]);
 
   return {
@@ -474,6 +658,8 @@ export async function getSettingsReadModel() {
     role: dashboard.context.role,
     auditLogs,
     latestScheduledRun,
+    eventIngestKeys,
+    canManageEventIngestKeys: canManageWorkspace(dashboard.context),
   };
 }
 
@@ -485,6 +671,9 @@ export type ServiceListReadModel = NonNullable<
 >;
 export type ServiceDetailReadModel = NonNullable<
   Awaited<ReturnType<typeof getServiceDetailReadModel>>
+>;
+export type EventsReadModel = NonNullable<
+  Awaited<ReturnType<typeof getEventsReadModel>>
 >;
 export type OperationalEventRow = OperationalEvent;
 export type SettingsReadModel = NonNullable<

@@ -1,6 +1,10 @@
 import { AuthenticatedShell } from "@/components/dashboard/authenticated-shell";
 import { formatTimestamp } from "@/components/dashboard/format";
 import {
+  CreateEventIngestKeyForm,
+  RevokeEventIngestKeyForm,
+} from "@/components/dashboard/event-ingest-key-controls";
+import {
   CompactTable,
   EmptyState,
   PageHeader,
@@ -102,6 +106,55 @@ export default async function SettingsPage() {
               </p>
             </div>
           ) : null}
+        </Panel>
+        <Panel title="Event Ingestion Keys">
+          <div className="space-y-4">
+            <CreateEventIngestKeyForm enabled={model.canManageEventIngestKeys} />
+            <CompactTable
+              minWidth="860px"
+              columns={[
+                { key: "name", header: "Name", width: "22%" },
+                { key: "source", header: "Source", width: "18%" },
+                { key: "created", header: "Created", width: "16%" },
+                { key: "lastUsed", header: "Last Used", width: "16%" },
+                { key: "state", header: "State", width: "14%" },
+                { key: "action", header: "Action", width: "14%" },
+              ]}
+              empty={
+                <EmptyState
+                  title="No event ingestion keys"
+                  description="Owners can create a source-scoped key when an integration is ready to send real events."
+                />
+              }
+              rows={model.eventIngestKeys.map((key) => {
+                const revoked = !key.isActive || key.revokedAt !== null;
+
+                return {
+                  name: (
+                    <div className="min-w-0">
+                      <span className="block truncate font-semibold text-slate-800">
+                        {key.name}
+                      </span>
+                      <TruncatedText value={key.lookupId} className="text-xs text-slate-500" />
+                    </div>
+                  ),
+                  source: <TruncatedText value={key.source} className="font-medium text-slate-700" />,
+                  created: <span>{formatTimestamp(key.createdAt)}</span>,
+                  lastUsed: <span>{formatTimestamp(key.lastUsedAt)}</span>,
+                  state: (
+                    <span className={`font-semibold ${revoked ? "text-slate-500" : "text-emerald-600"}`}>
+                      {revoked ? "Revoked" : "Active"}
+                    </span>
+                  ),
+                  action: model.canManageEventIngestKeys ? (
+                    <RevokeEventIngestKeyForm keyId={key.id} disabled={revoked} />
+                  ) : (
+                    <span className="text-sm font-medium text-slate-500">Read-only</span>
+                  ),
+                };
+              })}
+            />
+          </div>
         </Panel>
         <Panel title="Audit Log">
           <CompactTable

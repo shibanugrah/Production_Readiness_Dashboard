@@ -237,8 +237,14 @@ export default async function OverviewPage({
                     <div key={event.id} className="rounded-md border border-slate-200 p-3">
                       <p className="text-sm font-semibold text-slate-900">{event.message}</p>
                       <p className="mt-1 text-xs font-medium text-slate-500">
-                        {event.type} - {formatRelativeTime(event.occurredAt)}
+                        {event.source} - {event.type} - {event.severity} -{" "}
+                        {formatRelativeTime(event.occurredAt)}
                       </p>
+                      {event.service ? (
+                        <p className="mt-1 text-xs font-medium text-slate-500">
+                          Linked service: {event.service.name}
+                        </p>
+                      ) : null}
                     </div>
                   ))}
                 </div>
