@@ -52,3 +52,13 @@ export type ValidatedServiceInput = z.output<typeof serviceInputSchema>;
 export function validateServiceInput(input: ServiceInput) {
   return serviceInputSchema.parse(input);
 }
+
+export function getServiceInputFieldErrors(input: ServiceInput) {
+  const parsed = serviceInputSchema.safeParse(input);
+
+  if (parsed.success) {
+    return null;
+  }
+
+  return parsed.error.flatten().fieldErrors;
+}

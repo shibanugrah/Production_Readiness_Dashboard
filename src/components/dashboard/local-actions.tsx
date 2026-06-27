@@ -1,15 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { useRouter } from "next/navigation";
 
 import { FormField, PrimaryButton, SecondaryButton } from "@/components/dashboard/primitives";
-import {
-  addLocalDemoServiceAction,
-  runLocalChecksAction,
-} from "@/server/dashboard/actions";
+import { runLocalChecksAction } from "@/server/dashboard/actions";
+import { createServiceAction } from "@/server/services/actions";
 
 const serviceEnvironments = ["LOCAL", "PREVIEW", "STAGING", "PRODUCTION"];
+const initialServiceActionState = {
+  ok: false,
+  message: null,
+  fieldErrors: {},
+};
 
 function SubmitButton({
   children,
@@ -88,6 +92,18 @@ export function RunChecksControl({
 const inputClass =
   "h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100";
 
+function FieldErrors({ errors }: { errors?: string[] }) {
+  if (!errors?.length) {
+    return null;
+  }
+
+  return (
+    <p className="mt-1 text-xs font-semibold leading-4 text-rose-600">
+      {errors[0]}
+    </p>
+  );
+}
+
 export function AddServiceDrawer({
   enabled,
   result,
@@ -96,7 +112,12 @@ export function AddServiceDrawer({
   result?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
   const firstInputRef = useRef<HTMLInputElement>(null);
+  const [state, formAction] = useActionState(
+    createServiceAction,
+    initialServiceActionState,
+  );
 
   useEffect(() => {
     if (!open) {
@@ -122,23 +143,40 @@ export function AddServiceDrawer({
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!state.ok) {
+      return;
+    }
+
+    router.refresh();
+  }, [router, state.ok]);
+
   const message =
-    result === "created"
+    state.message ??
+    (result === "created"
       ? "Service created."
       : result === "error"
         ? "Service could not be created."
         : result === "denied"
           ? "Your role cannot create services."
-        : result === "disabled"
-          ? "Local service creation is disabled."
-          : null;
+          : result === "disabled"
+            ? "Local service creation is disabled."
+            : null);
 
   return (
     <>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         {message ? (
-          <span className="text-sm font-medium text-slate-600" role="status">
+          <span
+            className={`text-sm font-medium ${state.message && !state.ok ? "text-rose-600" : "text-slate-600"}`}
+            role="status"
+          >
             {message}
+          </span>
+        ) : null}
+        {!enabled ? (
+          <span className="text-sm font-medium text-slate-500">
+            Viewer access is read-only.
           </span>
         ) : null}
         <PrimaryButton
@@ -177,7 +215,7 @@ export function AddServiceDrawer({
                 x
               </button>
             </div>
-            <form action={addLocalDemoServiceAction} className="flex min-h-0 flex-1 flex-col">
+            <form action={formAction} className="flex min-h-0 flex-1 flex-col">
               <input type="hidden" name="returnPath" value="/services" />
               <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
                 <FormField label="Service name">
@@ -188,6 +226,7 @@ export function AddServiceDrawer({
                     className={inputClass}
                     placeholder="Billing API"
                   />
+                  <FieldErrors errors={state.fieldErrors.name} />
                 </FormField>
                 <FormField label="Slug">
                   <input
@@ -196,6 +235,7 @@ export function AddServiceDrawer({
                     className={inputClass}
                     placeholder="billing-api"
                   />
+                  <FieldErrors errors={state.fieldErrors.slug} />
                 </FormField>
                 <FormField label="Base URL">
                   <input
@@ -204,6 +244,7 @@ export function AddServiceDrawer({
                     className={inputClass}
                     placeholder="http://app:3000"
                   />
+                  <FieldErrors errors={state.fieldErrors.baseUrl} />
                 </FormField>
                 <FormField label="Health path">
                   <input
@@ -212,6 +253,7 @@ export function AddServiceDrawer({
                     className={inputClass}
                     placeholder="/api/demo-service/health"
                   />
+                  <FieldErrors errors={state.fieldErrors.healthPath} />
                 </FormField>
                 <FormField label="Environment">
                   <select
@@ -225,6 +267,7 @@ export function AddServiceDrawer({
                       </option>
                     ))}
                   </select>
+                  <FieldErrors errors={state.fieldErrors.environment} />
                 </FormField>
                 <FormField label="Expected version (optional)">
                   <input
@@ -232,6 +275,7 @@ export function AddServiceDrawer({
                     className={inputClass}
                     placeholder="local-demo"
                   />
+                  <FieldErrors errors={state.fieldErrors.expectedVersion} />
                 </FormField>
               </div>
               <div className="sticky bottom-0 grid grid-cols-2 gap-3 border-t border-slate-200 bg-white p-5">

@@ -7,7 +7,7 @@ import {
 } from "@/server/dashboard/actions";
 import { getDashboardContext } from "@/server/dashboard/read-models";
 import { runHealthChecks } from "@/server/health-checks/runner";
-import { createService } from "@/server/services/repository";
+import { createManagedService } from "@/server/services/management";
 
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
@@ -31,8 +31,15 @@ vi.mock("@/server/health-checks/runner", () => ({
   runHealthChecks: vi.fn(),
 }));
 
-vi.mock("@/server/services/repository", () => ({
-  createService: vi.fn(),
+vi.mock("@/server/services/management", () => ({
+  createManagedService: vi.fn(),
+  formDataToServiceInput: vi.fn(() => ({
+    name: "Demo Service",
+    slug: "demo-service",
+    baseUrl: "http://app:3000",
+    healthPath: "/api/health",
+    environment: "LOCAL",
+  })),
 }));
 
 function context(role: WorkspaceRole) {
@@ -101,6 +108,6 @@ describe("dashboard mutation RBAC", () => {
     await expect(addLocalDemoServiceAction(formData)).rejects.toThrow(
       "NEXT_REDIRECT:/services?service=denied",
     );
-    expect(createService).not.toHaveBeenCalled();
+    expect(createManagedService).not.toHaveBeenCalled();
   });
 });

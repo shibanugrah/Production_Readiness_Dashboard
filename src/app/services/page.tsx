@@ -15,7 +15,6 @@ import {
 import { ServicesFilterBar } from "@/components/dashboard/services-controls";
 import { StatusBadge } from "@/components/dashboard/status";
 import { canManageServices } from "@/server/auth/permissions";
-import { isLocalDemoActionsEnabled } from "@/server/dashboard/local-demo";
 import { getServiceListReadModel } from "@/server/dashboard/read-models";
 
 export default async function ServicesPage({
@@ -49,7 +48,7 @@ export default async function ServicesPage({
           description="Monitor and manage registered services."
           actions={
             <AddServiceDrawer
-              enabled={isLocalDemoActionsEnabled() && canManageServices(model)}
+              enabled={canManageServices(model)}
               result={serviceResult}
             />
           }

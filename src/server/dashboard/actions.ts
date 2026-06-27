@@ -1,11 +1,12 @@
 "use server";
-
-import { ServiceEnvironment } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { runHealthChecks } from "@/server/health-checks/runner";
-import { createService } from "@/server/services/repository";
+import {
+  createManagedService,
+  formDataToServiceInput,
+} from "@/server/services/management";
 import { getDashboardContext } from "@/server/dashboard/read-models";
 import { isLocalDemoActionsEnabled } from "@/server/dashboard/local-demo";
 import { canManageServices, canRunChecks } from "@/server/auth/permissions";
@@ -65,17 +66,13 @@ export async function addLocalDemoServiceAction(formData: FormData) {
   }
 
   try {
-    await createService(dashboard.context, {
-      name: String(formData.get("name") ?? ""),
-      slug: String(formData.get("slug") ?? ""),
-      baseUrl: String(formData.get("baseUrl") ?? ""),
-      healthPath: String(formData.get("healthPath") ?? ""),
-      environment: String(formData.get("environment") ?? "") as ServiceEnvironment,
-      expectedVersion:
-        String(formData.get("expectedVersion") ?? "").trim() || undefined,
-    });
+    const service = await createManagedService(
+      dashboard.context,
+      formDataToServiceInput(formData),
+    );
     revalidatePath("/services");
     revalidatePath("/");
+    revalidatePath(`/services/${service.id}`);
   } catch {
     redirect(`${returnPath}?service=error`);
   }

@@ -21,8 +21,9 @@ import {
   SegmentedHealthHistoryStrip,
   statusDescription,
 } from "@/components/dashboard/service-components";
+import { ServiceConfigurationControls } from "@/components/dashboard/service-configuration-controls";
 import { CheckResultBadge, StatusBadge, statusTone } from "@/components/dashboard/status";
-import { canRunChecks } from "@/server/auth/permissions";
+import { canManageServices, canRunChecks } from "@/server/auth/permissions";
 import { isLocalDemoActionsEnabled } from "@/server/dashboard/local-demo";
 import { getServiceDetailReadModel } from "@/server/dashboard/read-models";
 
@@ -41,6 +42,70 @@ function DetailRow({
       <dd className={`min-w-0 font-semibold text-slate-900 ${accent ?? ""}`}>{value}</dd>
     </div>
   );
+}
+
+function auditActionLabel(action: string) {
+  if (action === "SERVICE_CREATED") {
+    return "Created";
+  }
+
+  if (action === "SERVICE_UPDATED") {
+    return "Updated";
+  }
+
+  if (action === "SERVICE_DEACTIVATED") {
+    return "Deactivated";
+  }
+
+  if (action === "SERVICE_REACTIVATED") {
+    return "Reactivated";
+  }
+
+  return action;
+}
+
+function formatAuditSummary(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object") {
+    return "No field summary recorded.";
+  }
+
+  const record = metadata as {
+    summary?: unknown;
+    changes?: unknown;
+  };
+  const summary = typeof record.summary === "string" ? record.summary : null;
+  const changes = Array.isArray(record.changes)
+    ? record.changes
+        .map((item) => {
+          if (!item || typeof item !== "object") {
+            return null;
+          }
+
+          const change = item as {
+            field?: unknown;
+            from?: unknown;
+            to?: unknown;
+          };
+          const field = typeof change.field === "string" ? change.field : null;
+
+          if (!field) {
+            return null;
+          }
+
+          const from = change.from === null || change.from === undefined ? "not set" : String(change.from);
+          const to = change.to === null || change.to === undefined ? "not set" : String(change.to);
+          return `${field}: ${from} -> ${to}`;
+        })
+        .filter((item): item is string => item !== null)
+    : [];
+
+  if (changes.length > 0) {
+    const visibleChanges = changes.slice(0, 3).join("; ");
+    const remaining = changes.length > 3 ? `; +${changes.length - 3} more` : "";
+    return `${visibleChanges}${remaining}`;
+  }
+
+  return summary ?? "No field summary recorded.";
 }
 
 export default async function ServiceDetailPage({
@@ -245,34 +310,51 @@ export default async function ServiceDetailPage({
         </div>
 
         <Panel title="4. Configuration">
-          <dl className="grid overflow-hidden rounded-lg border border-slate-200 text-sm md:grid-cols-2 xl:grid-cols-3">
-            <div className="border-b border-slate-200 p-4 xl:border-r">
-              <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-slate-500">Base URL</dt>
-              <dd className="mt-2 font-semibold text-blue-600">
-                <TruncatedText value={service.baseUrl} />
-              </dd>
-            </div>
-            <div className="border-b border-slate-200 p-4 xl:border-r">
-              <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-slate-500">Health path</dt>
-              <dd className="mt-2 font-semibold text-slate-900">{service.healthPath}</dd>
-            </div>
-            <div className="border-b border-slate-200 p-4">
-              <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-slate-500">Expected version</dt>
-              <dd className="mt-2 font-semibold text-slate-900">{service.expectedVersion ?? "Not set"}</dd>
-            </div>
-            <div className="border-b border-slate-200 p-4 xl:border-b-0 xl:border-r">
-              <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-slate-500">Environment</dt>
-              <dd className="mt-2 font-semibold text-slate-900">{service.environment}</dd>
-            </div>
-            <div className="border-b border-slate-200 p-4 md:border-b-0 xl:border-r">
-              <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-slate-500">Active monitoring</dt>
-              <dd className="mt-2 font-semibold text-slate-900">{service.isActive ? "Enabled" : "Disabled"}</dd>
-            </div>
-            <div className="p-4">
-              <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-slate-500">Last healthy</dt>
-              <dd className="mt-2 font-semibold text-slate-900">{formatTimestamp(service.lastHealthyAt)}</dd>
-            </div>
-          </dl>
+          <ServiceConfigurationControls
+            service={{
+              id: service.id,
+              name: service.name,
+              slug: service.slug,
+              baseUrl: service.baseUrl,
+              healthPath: service.healthPath,
+              environment: service.environment,
+              expectedVersion: service.expectedVersion,
+              isActive: service.isActive,
+            }}
+            environments={model.environments}
+            canManage={canManageServices(model)}
+          />
+        </Panel>
+
+        <Panel title="5. Configuration activity">
+          <CompactTable
+            minWidth="760px"
+            columns={[
+              { key: "time", header: "Time", width: "18%" },
+              { key: "actor", header: "Actor", width: "22%" },
+              { key: "action", header: "Action", width: "16%" },
+              { key: "summary", header: "Summary", width: "44%" },
+            ]}
+            empty={
+              <EmptyState
+                title="No configuration activity"
+                description="Service management changes will appear here after Owner or Admin updates."
+              />
+            }
+            rows={model.auditLogs.map((entry) => ({
+              time: <span>{formatTimestamp(entry.createdAt)}</span>,
+              actor: (
+                <div className="min-w-0">
+                  <span className="block truncate font-semibold text-slate-800">
+                    {entry.actorUser.name}
+                  </span>
+                  <TruncatedText value={entry.actorUser.email} className="text-xs text-slate-500" />
+                </div>
+              ),
+              action: <span className="font-semibold text-slate-800">{auditActionLabel(entry.action)}</span>,
+              summary: <TruncatedText value={formatAuditSummary(entry.metadataJson)} className="text-slate-700" />,
+            }))}
+          />
         </Panel>
       </div>
     </AuthenticatedShell>

@@ -9,8 +9,10 @@ import {
 
 import { prisma } from "@/server/db";
 import { getCurrentWorkspaceContext } from "@/server/auth/context";
+import { serviceAuditActions } from "@/server/services/management";
 
 const recentRangeHours = 24;
+const serviceAuditActionValues = Object.values(serviceAuditActions);
 
 type LatestCheck = Pick<
   HealthCheck,
@@ -287,6 +289,26 @@ export async function getServiceDetailReadModel(serviceId: string) {
     return null;
   }
 
+  const auditLogs = await prisma.auditLog.findMany({
+    where: {
+      workspaceId: dashboard.context.workspaceId,
+      resourceType: "SERVICE",
+      resourceId: serviceId,
+      action: { in: serviceAuditActionValues },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 12,
+    include: {
+      actorUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+  });
+
   const serviceRow = toDashboardServiceRow(service);
   const latestCheck = serviceRow.latestCheck;
   const latestFailedCheck =
@@ -301,6 +323,42 @@ export async function getServiceDetailReadModel(serviceId: string) {
     history: service.healthChecks,
     latestCheck,
     latestFailedCheck,
+    auditLogs,
+    environments: Object.values(ServiceEnvironment),
+  };
+}
+
+export async function getSettingsReadModel() {
+  const dashboard = await getDashboardContext();
+
+  if (!dashboard) {
+    return null;
+  }
+
+  const auditLogs = await prisma.auditLog.findMany({
+    where: {
+      workspaceId: dashboard.context.workspaceId,
+      resourceType: "SERVICE",
+      action: { in: serviceAuditActionValues },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    include: {
+      actorUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+  });
+
+  return {
+    workspace: dashboard.workspace,
+    user: dashboard.context.user,
+    role: dashboard.context.role,
+    auditLogs,
   };
 }
 
@@ -314,3 +372,6 @@ export type ServiceDetailReadModel = NonNullable<
   Awaited<ReturnType<typeof getServiceDetailReadModel>>
 >;
 export type OperationalEventRow = OperationalEvent;
+export type SettingsReadModel = NonNullable<
+  Awaited<ReturnType<typeof getSettingsReadModel>>
+>;
