@@ -7,6 +7,7 @@ export default async function SignInPage({
 }) {
   const params = (await searchParams) ?? {};
   const error = params.error === "invalid";
+  const unavailable = params.error === "unavailable";
   const signedOut = params.signedOut === "1";
   const returnPath =
     typeof params.returnPath === "string" && params.returnPath.startsWith("/")
@@ -38,6 +39,11 @@ export default async function SignInPage({
         {error ? (
           <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
             Invalid email or password.
+          </div>
+        ) : null}
+        {unavailable ? (
+          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Sign-in is temporarily unavailable because the database cannot be reached.
           </div>
         ) : null}
         {signedOut ? (

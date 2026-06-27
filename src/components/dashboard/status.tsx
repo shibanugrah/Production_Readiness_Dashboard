@@ -2,15 +2,15 @@ import { HealthCheckStatus, ServiceStatus } from "@prisma/client";
 
 const serviceStatusStyles = {
   [ServiceStatus.HEALTHY]: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  [ServiceStatus.DEGRADED]: "border-amber-200 bg-amber-50 text-amber-700",
-  [ServiceStatus.DOWN]: "border-rose-200 bg-rose-50 text-rose-700",
+  [ServiceStatus.DEGRADED]: "border-amber-200 bg-orange-50 text-orange-600",
+  [ServiceStatus.DOWN]: "border-rose-200 bg-rose-50 text-rose-600",
   [ServiceStatus.UNKNOWN]: "border-slate-200 bg-slate-50 text-slate-600",
 };
 
 const checkStatusStyles = {
   [HealthCheckStatus.SUCCESS]: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  [HealthCheckStatus.DEGRADED]: "border-amber-200 bg-amber-50 text-amber-700",
-  [HealthCheckStatus.FAILURE]: "border-rose-200 bg-rose-50 text-rose-700",
+  [HealthCheckStatus.DEGRADED]: "border-amber-200 bg-orange-50 text-orange-600",
+  [HealthCheckStatus.FAILURE]: "border-rose-200 bg-rose-50 text-rose-600",
 };
 
 const checkLabels = {
@@ -54,7 +54,7 @@ function toTitle(value: string) {
 export function StatusBadge({ status }: { status: ServiceStatus }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${serviceStatusStyles[status]}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold leading-4 ${serviceStatusStyles[status]}`}
     >
       <span className={`h-1.5 w-1.5 rounded-full ${serviceDotStyle(status)}`} />
       {toTitle(status)}
@@ -65,7 +65,7 @@ export function StatusBadge({ status }: { status: ServiceStatus }) {
 export function CheckResultBadge({ status }: { status: HealthCheckStatus }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${checkStatusStyles[status]}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold leading-4 ${checkStatusStyles[status]}`}
     >
       <span className={`h-1.5 w-1.5 rounded-full ${checkDotStyle(status)}`} />
       {checkLabels[status]}

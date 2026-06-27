@@ -139,7 +139,7 @@ async function listServicesWithLatestCheck(workspaceId: string) {
     include: {
       healthChecks: {
         orderBy: { checkedAt: "desc" },
-        take: 1,
+        take: 36,
         select: {
           id: true,
           status: true,
@@ -163,14 +163,15 @@ export async function getOverviewSummary() {
   }
 
   const since = new Date(Date.now() - recentRangeHours * 60 * 60 * 1_000);
-  const [services, failedChecks, operationalEvents] = await Promise.all([
+  const failedCheckWhere = {
+    workspaceId: dashboard.context.workspaceId,
+    status: HealthCheckStatus.FAILURE,
+    checkedAt: { gte: since },
+  };
+  const [services, failedChecks, failedCheckCount, operationalEvents] = await Promise.all([
     listServicesWithLatestCheck(dashboard.context.workspaceId),
     prisma.healthCheck.findMany({
-      where: {
-        workspaceId: dashboard.context.workspaceId,
-        status: HealthCheckStatus.FAILURE,
-        checkedAt: { gte: since },
-      },
+      where: failedCheckWhere,
       orderBy: { checkedAt: "desc" },
       take: 8,
       select: {
@@ -191,6 +192,7 @@ export async function getOverviewSummary() {
         },
       },
     }),
+    prisma.healthCheck.count({ where: failedCheckWhere }),
     prisma.operationalEvent.findMany({
       where: { workspaceId: dashboard.context.workspaceId },
       orderBy: { occurredAt: "desc" },
@@ -210,7 +212,7 @@ export async function getOverviewSummary() {
     activeServiceCount: activeServices.length,
     counts,
     readiness: calculateReadinessState(counts),
-    failedCheckCount: failedChecks.length,
+    failedCheckCount,
     failedChecks,
     operationalEvents,
     rangeLabel: `Last ${recentRangeHours} hours`,

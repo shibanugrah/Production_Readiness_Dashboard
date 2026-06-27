@@ -24,15 +24,27 @@ export async function signInAction(formData: FormData) {
     ? (rawReturnPath as string)
     : "/";
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  let user: Awaited<ReturnType<typeof prisma.user.findUnique>>;
+
+  try {
+    user = await prisma.user.findUnique({ where: { email } });
+  } catch {
+    redirect(`/signin?error=unavailable&returnPath=${encodeURIComponent(returnPath)}`);
+  }
+
   const passwordMatches = await verifyPassword(password, user?.passwordHash ?? null);
 
   if (!user || !passwordMatches) {
     redirect(`/signin?error=invalid&returnPath=${encodeURIComponent(returnPath)}`);
   }
 
-  const session = await createSession(user.id);
-  await setSessionCookie(session.token, session.expiresAt);
+  try {
+    const session = await createSession(user.id);
+    await setSessionCookie(session.token, session.expiresAt);
+  } catch {
+    redirect(`/signin?error=unavailable&returnPath=${encodeURIComponent(returnPath)}`);
+  }
+
   redirect(returnPath);
 }
 
