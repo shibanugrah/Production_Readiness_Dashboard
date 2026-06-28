@@ -15,6 +15,7 @@ const safeValidationFixture = {
   HEALTH_CHECK_LOCAL_ALLOWLIST_ENABLED: "false",
   HEALTH_CHECK_LOCAL_ALLOWED_TARGETS: "",
   DEMO_SERVICE_HEALTH_ENABLED: "false",
+  PUBLIC_DEMO_ACCESS_ENABLED: "false",
 } as NodeJS.ProcessEnv;
 
 function log(message: string) {
@@ -35,6 +36,9 @@ function usesExplicitDeploymentEnvironment(environment: NodeJS.ProcessEnv) {
     "HEALTH_CHECK_LOCAL_ALLOWLIST_ENABLED",
     "HEALTH_CHECK_LOCAL_ALLOWED_TARGETS",
     "DEMO_SERVICE_HEALTH_ENABLED",
+    "PUBLIC_DEMO_ACCESS_ENABLED",
+    "PUBLIC_DEMO_APP_BASE_URL",
+    "PUBLIC_DEMO_VIEWER_EMAIL",
   ].some((key) => Boolean(environment[key])) || environment.NODE_ENV === "production";
 }
 

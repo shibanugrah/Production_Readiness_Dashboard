@@ -135,91 +135,102 @@ export default async function SettingsPage() {
             </div>
           ) : null}
         </Panel>
-        <Panel title="Event Ingestion Keys">
-          <div className="space-y-4">
-            <CreateEventIngestKeyForm enabled={model.canManageEventIngestKeys} />
+        {model.canViewSettingsDetails ? (
+          <>
+          <Panel title="Event Ingestion Keys">
+            <div className="space-y-4">
+              <CreateEventIngestKeyForm enabled={model.canManageEventIngestKeys} />
+              <CompactTable
+                minWidth="860px"
+                columns={[
+                  { key: "name", header: "Name", width: "22%" },
+                  { key: "source", header: "Source", width: "18%" },
+                  { key: "created", header: "Created", width: "16%" },
+                  { key: "lastUsed", header: "Last Used", width: "16%" },
+                  { key: "state", header: "State", width: "14%" },
+                  { key: "action", header: "Action", width: "14%" },
+                ]}
+                empty={
+                  <EmptyState
+                    title="No event ingestion keys"
+                    description="Owners can create a source-scoped key when an integration is ready to send real events."
+                  />
+                }
+                rows={model.eventIngestKeys.map((key) => {
+                  const revoked = !key.isActive || key.revokedAt !== null;
+
+                  return {
+                    name: (
+                      <div className="min-w-0">
+                        <span className="block truncate font-semibold text-slate-800">
+                          {key.name}
+                        </span>
+                        <TruncatedText value={key.lookupId} className="text-xs text-slate-500" />
+                      </div>
+                    ),
+                    source: <TruncatedText value={key.source} className="font-medium text-slate-700" />,
+                    created: <span>{formatTimestamp(key.createdAt)}</span>,
+                    lastUsed: <span>{formatTimestamp(key.lastUsedAt)}</span>,
+                    state: (
+                      <span className={`font-semibold ${revoked ? "text-slate-500" : "text-emerald-600"}`}>
+                        {revoked ? "Revoked" : "Active"}
+                      </span>
+                    ),
+                    action: model.canManageEventIngestKeys ? (
+                      <RevokeEventIngestKeyForm keyId={key.id} disabled={revoked} />
+                    ) : (
+                      <span className="text-sm font-medium text-slate-500">Read-only</span>
+                    ),
+                  };
+                })}
+              />
+            </div>
+          </Panel>
+          <Panel title="Audit Log">
             <CompactTable
-              minWidth="860px"
+              minWidth="760px"
               columns={[
-                { key: "name", header: "Name", width: "22%" },
-                { key: "source", header: "Source", width: "18%" },
-                { key: "created", header: "Created", width: "16%" },
-                { key: "lastUsed", header: "Last Used", width: "16%" },
-                { key: "state", header: "State", width: "14%" },
-                { key: "action", header: "Action", width: "14%" },
+                { key: "time", header: "Time", width: "22%" },
+                { key: "actor", header: "Actor", width: "28%" },
+                { key: "action", header: "Action", width: "20%" },
+                { key: "resource", header: "Resource", width: "30%" },
               ]}
               empty={
                 <EmptyState
-                  title="No event ingestion keys"
-                  description="Owners can create a source-scoped key when an integration is ready to send real events."
+                  title="No workspace audit activity"
+                  description="Service management, event ingestion key, event triage, and incident actions will appear here."
                 />
               }
-              rows={model.eventIngestKeys.map((key) => {
-                const revoked = !key.isActive || key.revokedAt !== null;
-
-                return {
-                  name: (
-                    <div className="min-w-0">
-                      <span className="block truncate font-semibold text-slate-800">
-                        {key.name}
-                      </span>
-                      <TruncatedText value={key.lookupId} className="text-xs text-slate-500" />
-                    </div>
-                  ),
-                  source: <TruncatedText value={key.source} className="font-medium text-slate-700" />,
-                  created: <span>{formatTimestamp(key.createdAt)}</span>,
-                  lastUsed: <span>{formatTimestamp(key.lastUsedAt)}</span>,
-                  state: (
-                    <span className={`font-semibold ${revoked ? "text-slate-500" : "text-emerald-600"}`}>
-                      {revoked ? "Revoked" : "Active"}
+              rows={model.auditLogs.map((entry) => ({
+                time: <span>{formatTimestamp(entry.createdAt)}</span>,
+                actor: (
+                  <div className="min-w-0">
+                    <span className="block truncate font-semibold text-slate-800">
+                      {entry.actorUser.name}
                     </span>
-                  ),
-                  action: model.canManageEventIngestKeys ? (
-                    <RevokeEventIngestKeyForm keyId={key.id} disabled={revoked} />
-                  ) : (
-                    <span className="text-sm font-medium text-slate-500">Read-only</span>
-                  ),
-                };
-              })}
+                    <TruncatedText value={entry.actorUser.email} className="text-xs text-slate-500" />
+                  </div>
+                ),
+                action: <span className="font-semibold text-slate-800">{auditActionLabel(entry.action)}</span>,
+                resource: <TruncatedText value={entry.resourceLabel} className="text-slate-600" />,
+              }))}
             />
-          </div>
-        </Panel>
-        <Panel title="Audit Log">
-          <CompactTable
-            minWidth="760px"
-            columns={[
-              { key: "time", header: "Time", width: "22%" },
-              { key: "actor", header: "Actor", width: "28%" },
-              { key: "action", header: "Action", width: "20%" },
-              { key: "resource", header: "Resource", width: "30%" },
-            ]}
-            empty={
-              <EmptyState
-                title="No workspace audit activity"
-                description="Service management, event ingestion key, event triage, and incident actions will appear here."
-              />
-            }
-            rows={model.auditLogs.map((entry) => ({
-              time: <span>{formatTimestamp(entry.createdAt)}</span>,
-              actor: (
-                <div className="min-w-0">
-                  <span className="block truncate font-semibold text-slate-800">
-                    {entry.actorUser.name}
-                  </span>
-                  <TruncatedText value={entry.actorUser.email} className="text-xs text-slate-500" />
-                </div>
-              ),
-              action: <span className="font-semibold text-slate-800">{auditActionLabel(entry.action)}</span>,
-              resource: <TruncatedText value={entry.resourceLabel} className="text-slate-600" />,
-            }))}
-          />
-        </Panel>
+          </Panel>
+          </>
+        ) : (
+          <Panel title="Workspace Settings">
+            <EmptyState
+              title="Viewer settings access is read-only"
+              description="Sensitive ingestion-key metadata and private audit activity are restricted to Owner/Admin users."
+            />
+          </Panel>
+        )}
         </>
       ) : null}
       <Panel title="Settings">
         <EmptyState
           title="Settings unavailable"
-          description="Authentication, invitations, notification rules, and workspace administration are outside this phase."
+          description="Owner/Admin users can run manual health checks. Automated alerting, paging, production notification delivery, and external integrations are future work and are not presented as active."
         />
       </Panel>
     </div>

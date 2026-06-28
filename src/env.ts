@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+import {
+  getPublicDemoRuntimeConfigIssues,
+  isPublicDemoAccessEnabled,
+} from "./server/public-demo-config";
+
 export const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   AUTH_SECRET: z.string().min(1),
@@ -11,6 +16,11 @@ export const envSchema = z.object({
   HEALTH_CHECK_LOCAL_ALLOWLIST_ENABLED: z.string().optional(),
   HEALTH_CHECK_LOCAL_ALLOWED_TARGETS: z.string().optional(),
   DEMO_SERVICE_HEALTH_ENABLED: z.string().optional(),
+  PUBLIC_DEMO_ACCESS_ENABLED: z.string().optional(),
+  PUBLIC_DEMO_APP_BASE_URL: z.string().optional(),
+  PUBLIC_DEMO_VIEWER_EMAIL: z.string().optional(),
+  PUBLIC_DEMO_OWNER_EMAIL: z.string().optional(),
+  PUBLIC_DEMO_OWNER_PASSWORD: z.string().optional(),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;
@@ -124,6 +134,10 @@ function validateProductionEnv(environment: NodeJS.ProcessEnv) {
     issues.push(
       "DEMO_SERVICE_HEALTH_ENABLED must not be true in production. Do not expose controllable demo health modes publicly.",
     );
+  }
+
+  if (isPublicDemoAccessEnabled(environment)) {
+    issues.push(...getPublicDemoRuntimeConfigIssues(environment));
   }
 
   if (issues.length > 0) {

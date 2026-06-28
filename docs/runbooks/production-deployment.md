@@ -36,6 +36,7 @@ This runbook defines the provider-neutral release contract for Production Readin
 - `HEALTH_CHECK_LOCAL_ALLOWLIST_ENABLED` is `false`.
 - `HEALTH_CHECK_LOCAL_ALLOWED_TARGETS` is empty.
 - `DEMO_SERVICE_HEALTH_ENABLED` is not `true`, so controllable demo health modes are not publicly exposed.
+- `PUBLIC_DEMO_ACCESS_ENABLED` is set to `true` only when the public demo has been prepared and verified.
 - Owner/Admin/Viewer authorization still works after release.
 - Viewer mutation denial still works server-side.
 - Owner/Admin users can run the manual health-check action against persisted service configuration.
@@ -55,7 +56,7 @@ This runbook defines the provider-neutral release contract for Production Readin
 
 `npm run db:seed` is for explicit first-time demo initialization only. It must never run automatically on every deployment, in container startup, or in CI release steps.
 
-The current seed script is idempotent for the demo workspace, demo users, workspace memberships, and seeded services because it uses upsert/delete guards for those known records. It updates demo user password hashes from the environment and upserts the three demo services. It does not create health-check history, operational events, incidents, or audit history for normal dashboard evidence.
+The current seed script is idempotent for the local demo workspace, demo users, workspace memberships, and seeded services because it uses upsert/delete guards for those known records. When public-demo seed variables are present, it also upserts the isolated `Public Demo` workspace, a dedicated operator Owner, a passwordless Viewer, one active public self-monitor service, and one inactive failure/demo service. It does not create health-check history, operational events, incidents, or audit history for normal dashboard evidence.
 
 Manual one-time command, only after deciding that production demo data is intentional:
 
@@ -63,15 +64,37 @@ Manual one-time command, only after deciding that production demo data is intent
 npm run db:seed
 ```
 
-Expected behavior: the `Portfolio Operations` workspace, Owner/Admin/Viewer demo users, and three demo services are created or updated from the configured environment values.
+Expected behavior: configured demo workspaces, users, memberships, and services are created or updated from environment values. `HealthCheck`, `HealthCheckRun`, scheduler, event, incident, uptime, latency, and readiness evidence are not fabricated by the seed.
 
-## E. Scheduler Policy
+## E. Public Demo Preparation
+
+Use this checklist only after the application is deployed and `/api/health` is reachable. Do not print secrets, credentials, or database URLs in terminals, logs, screenshots, or support artifacts.
+
+1. Set the public-demo environment variables in Vercel: `PUBLIC_DEMO_ACCESS_ENABLED`, `PUBLIC_DEMO_APP_BASE_URL`, `PUBLIC_DEMO_VIEWER_EMAIL`, `PUBLIC_DEMO_OWNER_EMAIL`, and `PUBLIC_DEMO_OWNER_PASSWORD`.
+2. Apply migrations only if this release introduced one. This public-demo hardening does not require a migration.
+3. Run the seed explicitly once:
+
+   ```powershell
+   npm run db:seed
+   ```
+
+4. Sign in as the public demo Owner.
+5. Confirm the `Public Demo` workspace contains only public-safe services.
+6. Confirm the normal active service is `Production Readiness Dashboard`, uses `PUBLIC_DEMO_APP_BASE_URL`, `/api/health`, and the deployed `APP_VERSION`.
+7. Confirm intentional failure/demo services are inactive by default.
+8. Run one manual check from the dashboard.
+9. Confirm the self-monitor service is truly `HEALTHY` with a persisted recent manual result.
+10. Confirm scheduler remains `Not configured` and no scheduled-run evidence exists for the public demo.
+11. Test `Explore read-only demo`.
+12. Confirm Viewer cannot mutate services, trigger checks, create incidents, triage events, or access sensitive settings.
+
+## F. Scheduler Policy
 
 n8n is not configured by default. Scheduled monitoring is active only after a real n8n workflow execution calls the protected scheduled-run endpoint and creates persisted `SCHEDULED` `HealthCheckRun` evidence.
 
 Scheduler credentials belong only in n8n credential storage or protected n8n environment variables. Do not paste `INTERNAL_HEALTH_CHECK_SECRET` into workflow descriptions, screenshots, README snippets, logs, or repository files.
 
-## F. Rollback And Incident Response
+## G. Rollback And Incident Response
 
 App health failure:
 Stop the release, inspect application logs for safe error names, confirm environment variables are present, then verify database reachability from the hosting network. Do not print `DATABASE_URL` or secret values while debugging.

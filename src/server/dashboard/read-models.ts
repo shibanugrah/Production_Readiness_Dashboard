@@ -15,6 +15,7 @@ import {
   Service,
   ServiceEnvironment,
   ServiceStatus,
+  WorkspaceRole,
 } from "@prisma/client";
 
 import { prisma } from "@/server/db";
@@ -22,6 +23,7 @@ import { getCurrentWorkspaceContext } from "@/server/auth/context";
 import {
   canManageWorkspace,
   canTriageOperationalEvents,
+  hasWorkspaceRole,
 } from "@/server/auth/permissions";
 import { serviceAuditActions } from "@/server/services/management";
 
@@ -275,6 +277,15 @@ function auditResourceLabel(resourceType: string, label: string) {
   }
 
   return label;
+}
+
+function redactViewerEventPayload<T extends OperationalEventWithService>(
+  event: T,
+): T {
+  return {
+    ...event,
+    metadata: null,
+  };
 }
 
 async function enrichAuditResourceLabels(
@@ -709,12 +720,17 @@ export async function getEventsReadModel(filters: {
         })
         : events[0] ?? null;
 
+  const canTriageEvents = canTriageOperationalEvents(dashboard.context);
+
   return {
     workspace: dashboard.workspace,
     user: dashboard.context.user,
     role: dashboard.context.role,
-    events,
-    selectedEvent,
+    events: canTriageEvents ? events : events.map(redactViewerEventPayload),
+    selectedEvent:
+      selectedEvent && !canTriageEvents
+        ? redactViewerEventPayload(selectedEvent)
+        : selectedEvent,
     openCount,
     highSeverityCount,
     recentFailuresCount,
@@ -730,7 +746,7 @@ export async function getEventsReadModel(filters: {
     eventTypes: Object.values(OperationalEventType),
     severities: Object.values(OperationalEventSeverity),
     statuses: Object.values(OperationalEventStatus),
-    canTriageEvents: canTriageOperationalEvents(dashboard.context),
+    canTriageEvents,
   };
 }
 
@@ -868,7 +884,8 @@ export async function getIncidentsReadModel(filters: {
           })
         : incidents[0] ?? null;
 
-  const timeline = selectedIncident
+  const canTriageEvents = canTriageOperationalEvents(dashboard.context);
+  const timeline = selectedIncident && canTriageEvents
     ? await prisma.auditLog.findMany({
         where: {
           workspaceId: dashboard.context.workspaceId,
@@ -911,7 +928,7 @@ export async function getIncidentsReadModel(filters: {
     openCount,
     highSeverityOpenCount,
     resolvedRecentCount,
-    canTriageEvents: canTriageOperationalEvents(dashboard.context),
+    canTriageEvents,
     filters: {
       status: filters.status ?? "all",
       severity: filters.severity ?? "all",
@@ -946,25 +963,31 @@ export async function getServiceDetailReadModel(serviceId: string) {
     return null;
   }
 
-  const auditLogs = await prisma.auditLog.findMany({
-    where: {
-      workspaceId: dashboard.context.workspaceId,
-      resourceType: "SERVICE",
-      resourceId: serviceId,
-      action: { in: serviceAuditActionValues },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 12,
-    include: {
-      actorUser: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
+  const canViewServiceAudit = hasWorkspaceRole(
+    dashboard.context,
+    WorkspaceRole.ADMIN,
+  );
+  const auditLogs = canViewServiceAudit
+    ? await prisma.auditLog.findMany({
+        where: {
+          workspaceId: dashboard.context.workspaceId,
+          resourceType: "SERVICE",
+          resourceId: serviceId,
+          action: { in: serviceAuditActionValues },
         },
-      },
-    },
-  });
+        orderBy: { createdAt: "desc" },
+        take: 12,
+        include: {
+          actorUser: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      })
+    : [];
 
   const serviceRow = toDashboardServiceRow(service);
   const latestCheck = serviceRow.latestCheck;
@@ -992,23 +1015,11 @@ export async function getSettingsReadModel() {
     return null;
   }
 
-  const [auditLogs, latestScheduledRun, eventIngestKeys] = await Promise.all([
-    prisma.auditLog.findMany({
-      where: {
-        workspaceId: dashboard.context.workspaceId,
-      },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-      include: {
-        actorUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-    }),
+  const canViewSettingsDetails = hasWorkspaceRole(
+    dashboard.context,
+    WorkspaceRole.ADMIN,
+  );
+  const [latestScheduledRun, auditLogs, eventIngestKeys] = await Promise.all([
     prisma.healthCheckRun.findFirst({
       where: {
         workspaceId: dashboard.context.workspaceId,
@@ -1016,25 +1027,47 @@ export async function getSettingsReadModel() {
       },
       orderBy: { startedAt: "desc" },
     }),
-    prisma.operationalEventIngestKey.findMany({
-      where: { workspaceId: dashboard.context.workspaceId },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        name: true,
-        source: true,
-        lookupId: true,
-        isActive: true,
-        lastUsedAt: true,
-        revokedAt: true,
-        createdAt: true,
-      },
-    }),
+    canViewSettingsDetails
+      ? prisma.auditLog.findMany({
+          where: {
+            workspaceId: dashboard.context.workspaceId,
+          },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          include: {
+            actorUser: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        })
+      : Promise.resolve([]),
+    canViewSettingsDetails
+      ? prisma.operationalEventIngestKey.findMany({
+          where: { workspaceId: dashboard.context.workspaceId },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            name: true,
+            source: true,
+            lookupId: true,
+            isActive: true,
+            lastUsedAt: true,
+            revokedAt: true,
+            createdAt: true,
+          },
+        })
+      : Promise.resolve([]),
   ]);
-  const auditLogsWithResourceLabels = await enrichAuditResourceLabels(
-    dashboard.context.workspaceId,
-    auditLogs,
-  );
+  const auditLogsWithResourceLabels = canViewSettingsDetails
+    ? await enrichAuditResourceLabels(
+        dashboard.context.workspaceId,
+        auditLogs,
+      )
+    : [];
 
   return {
     workspace: dashboard.workspace,
@@ -1043,6 +1076,7 @@ export async function getSettingsReadModel() {
     auditLogs: auditLogsWithResourceLabels,
     latestScheduledRun,
     eventIngestKeys,
+    canViewSettingsDetails,
     canManageEventIngestKeys: canManageWorkspace(dashboard.context),
   };
 }

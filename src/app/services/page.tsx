@@ -56,7 +56,7 @@ export default async function ServicesPage({
 
         <div className="grid gap-4 md:grid-cols-4">
           <MetricCard
-            label="Active Services"
+            label="Monitoring enabled"
             value={model.services.filter((service) => service.isActive).length}
             detail={`${model.services.length} registered`}
             tone="blue"

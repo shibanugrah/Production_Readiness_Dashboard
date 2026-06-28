@@ -9,6 +9,7 @@ import {
   destroyCurrentSession,
   setSessionCookie,
 } from "@/server/auth/session";
+import { getPublicDemoAvailability } from "@/server/public-demo";
 
 function isSafeReturnPath(path: string | null) {
   return path?.startsWith("/") && !path.startsWith("//");
@@ -46,6 +47,27 @@ export async function signInAction(formData: FormData) {
   }
 
   redirect(returnPath);
+}
+
+export async function publicDemoSignInAction() {
+  const availability = await getPublicDemoAvailability();
+
+  if (availability.kind === "disabled") {
+    redirect("/signin");
+  }
+
+  if (availability.kind !== "available") {
+    redirect("/signin?demo=unavailable");
+  }
+
+  try {
+    const session = await createSession(availability.viewerUserId);
+    await setSessionCookie(session.token, session.expiresAt);
+  } catch {
+    redirect("/signin?demo=unavailable");
+  }
+
+  redirect("/");
 }
 
 export async function signOutAction() {

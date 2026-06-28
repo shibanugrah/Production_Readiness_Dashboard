@@ -6,6 +6,7 @@ import {
   OperationalEventType,
   ServiceEnvironment,
   ServiceStatus,
+  WorkspaceRole,
 } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
@@ -222,6 +223,38 @@ describe("dashboard read model calculations", () => {
     );
   });
 
+  it("keeps service configuration audit rows out of Viewer service details", async () => {
+    vi.mocked(prisma.auditLog.findMany).mockClear();
+    vi.mocked(getCurrentWorkspaceContext).mockResolvedValue({
+      workspaceId: "workspace_public",
+      userId: "public_viewer",
+      user: {
+        id: "public_viewer",
+        name: "Public Demo Viewer",
+        email: "public-viewer@example.invalid",
+      },
+      workspace: {
+        id: "workspace_public",
+        name: "Public Demo",
+        slug: "public-recruiter-demo",
+      },
+      role: WorkspaceRole.VIEWER,
+    });
+    vi.mocked(prisma.service.findFirst).mockResolvedValue(
+      dashboardServiceFixture({
+        id: "service_self_monitor",
+        name: "Production Readiness Dashboard",
+        slug: "production-readiness-dashboard",
+        status: ServiceStatus.HEALTHY,
+      }) as never,
+    );
+
+    const model = await getServiceDetailReadModel("service_self_monitor");
+
+    expect(model?.auditLogs).toEqual([]);
+    expect(prisma.auditLog.findMany).not.toHaveBeenCalled();
+  });
+
   it("does not let browser-provided workspace IDs alter service list scoping", async () => {
     vi.mocked(getCurrentWorkspaceContext).mockResolvedValue({
       workspaceId: "workspace_a",
@@ -429,6 +462,62 @@ describe("dashboard read model calculations", () => {
     );
   });
 
+  it("redacts raw operational event metadata for Viewer read models", async () => {
+    vi.mocked(prisma.operationalEvent.findMany).mockClear();
+    vi.mocked(prisma.operationalEvent.count).mockClear();
+    vi.mocked(getCurrentWorkspaceContext).mockResolvedValue({
+      workspaceId: "workspace_public",
+      userId: "public_viewer",
+      user: {
+        id: "public_viewer",
+        name: "Public Demo Viewer",
+        email: "public-viewer@example.invalid",
+      },
+      workspace: {
+        id: "workspace_public",
+        name: "Public Demo",
+        slug: "public-recruiter-demo",
+      },
+      role: WorkspaceRole.VIEWER,
+    });
+    vi.mocked(prisma.operationalEvent.findMany)
+      .mockResolvedValueOnce([
+        {
+          id: "event_public",
+          workspaceId: "workspace_public",
+          serviceId: null,
+          source: "public-demo",
+          type: OperationalEventType.JOB,
+          severity: OperationalEventSeverity.ERROR,
+          status: OperationalEventStatus.OPEN,
+          message: "Job failed",
+          externalReference: "job/1",
+          errorMessage: "Extractor failed",
+          metadata: { rawPayload: "internal detail" },
+          payloadHash: "hash",
+          idempotencyKey: "job-1",
+          acknowledgedAt: null,
+          acknowledgedByUserId: null,
+          resolvedAt: null,
+          resolvedByUserId: null,
+          resolutionNote: null,
+          occurredAt: new Date("2026-06-27T00:00:00.000Z"),
+          createdAt: new Date("2026-06-27T00:00:01.000Z"),
+          updatedAt: new Date("2026-06-27T00:00:01.000Z"),
+          service: null,
+          incident: null,
+        },
+      ] as never)
+      .mockResolvedValueOnce([{ source: "public-demo" } as never]);
+    vi.mocked(prisma.operationalEvent.count).mockResolvedValue(0);
+
+    const model = await getEventsReadModel();
+
+    expect(model?.canTriageEvents).toBe(false);
+    expect(model?.events[0].metadata).toBeNull();
+    expect(model?.selectedEvent?.metadata).toBeNull();
+  });
+
   it("enriches settings audit rows with workspace-safe resource labels", async () => {
     vi.mocked(getCurrentWorkspaceContext).mockResolvedValue({
       workspaceId: "workspace_a",
@@ -558,6 +647,36 @@ describe("dashboard read model calculations", () => {
         },
       }),
     );
+  });
+
+  it("keeps Viewer settings access away from ingestion-key metadata and private audit rows", async () => {
+    vi.mocked(prisma.auditLog.findMany).mockClear();
+    vi.mocked(prisma.operationalEventIngestKey.findMany).mockClear();
+    vi.mocked(prisma.service.findMany).mockClear();
+    vi.mocked(getCurrentWorkspaceContext).mockResolvedValue({
+      workspaceId: "workspace_public",
+      userId: "public_viewer",
+      user: {
+        id: "public_viewer",
+        name: "Public Demo Viewer",
+        email: "public-viewer@example.invalid",
+      },
+      workspace: {
+        id: "workspace_public",
+        name: "Public Demo",
+        slug: "public-recruiter-demo",
+      },
+      role: WorkspaceRole.VIEWER,
+    });
+    vi.mocked(prisma.healthCheckRun.findFirst).mockResolvedValue(null);
+
+    const model = await getSettingsReadModel();
+
+    expect(model?.canViewSettingsDetails).toBe(false);
+    expect(model?.eventIngestKeys).toEqual([]);
+    expect(model?.auditLogs).toEqual([]);
+    expect(prisma.operationalEventIngestKey.findMany).not.toHaveBeenCalled();
+    expect(prisma.auditLog.findMany).not.toHaveBeenCalled();
   });
 
   it("renders scheduler evidence as not configured without a scheduled run", () => {

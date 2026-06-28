@@ -236,7 +236,7 @@ function createAuditMetadata(input: ValidatedServiceInput): AuditMetadata {
       { field: "health path", to: input.healthPath },
       { field: "environment", to: input.environment },
       { field: "expected version", to: nullishVersion(input.expectedVersion) },
-      { field: "active monitoring", to: "enabled" },
+      { field: "monitoring state", to: "enabled" },
     ],
   };
 }
@@ -446,7 +446,7 @@ async function setServiceActiveState(
           summary: isActive ? "Service reactivated" : "Service deactivated",
           changes: [
             {
-              field: "active monitoring",
+              field: "monitoring state",
               from: isActive ? "disabled" : "enabled",
               to: isActive ? "enabled" : "disabled",
             },

@@ -1,5 +1,5 @@
 import { WorkspaceRole } from "@prisma/client";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getCurrentWorkspaceContext } from "@/server/auth/context";
 import { getCurrentSession } from "@/server/auth/session";
@@ -13,11 +13,17 @@ vi.mock("@/server/db", () => ({
   prisma: {
     workspaceMember: {
       findFirst: vi.fn(),
+      findMany: vi.fn(),
     },
   },
 }));
 
 describe("authenticated workspace context", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.workspaceMember.findMany).mockResolvedValue([]);
+  });
+
   it("returns null when no authenticated session exists", async () => {
     vi.mocked(getCurrentSession).mockResolvedValue(null);
 
@@ -97,6 +103,86 @@ describe("authenticated workspace context", () => {
       },
     });
     vi.mocked(prisma.workspaceMember.findFirst).mockResolvedValue(null);
+
+    await expect(getCurrentWorkspaceContext()).resolves.toBeNull();
+  });
+
+  it("resolves a dedicated one-workspace public demo account without browser workspace input", async () => {
+    vi.mocked(getCurrentSession).mockResolvedValue({
+      id: "session_public",
+      userId: "public_viewer",
+      tokenHash: "hash",
+      expiresAt: new Date(Date.now() + 60_000),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      user: {
+        id: "public_viewer",
+        name: "Public Demo Viewer",
+        email: "public-viewer@example.invalid",
+        passwordHash: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+    vi.mocked(prisma.workspaceMember.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.workspaceMember.findMany).mockResolvedValue([
+      {
+        id: "member_public",
+        workspaceId: "workspace_public",
+        userId: "public_viewer",
+        role: WorkspaceRole.VIEWER,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        workspace: {
+          id: "workspace_public",
+          name: "Public Demo",
+          slug: "public-recruiter-demo",
+        },
+        user: {
+          id: "public_viewer",
+          name: "Public Demo Viewer",
+          email: "public-viewer@example.invalid",
+        },
+      },
+    ] as never);
+
+    await expect(getCurrentWorkspaceContext()).resolves.toMatchObject({
+      workspaceId: "workspace_public",
+      role: WorkspaceRole.VIEWER,
+      workspace: {
+        slug: "public-recruiter-demo",
+      },
+    });
+    expect(prisma.workspaceMember.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "public_viewer" },
+        take: 2,
+      }),
+    );
+  });
+
+  it("does not guess a workspace when the session user has ambiguous memberships", async () => {
+    vi.mocked(getCurrentSession).mockResolvedValue({
+      id: "session_ambiguous",
+      userId: "user_ambiguous",
+      tokenHash: "hash",
+      expiresAt: new Date(Date.now() + 60_000),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      user: {
+        id: "user_ambiguous",
+        name: "Ambiguous User",
+        email: "ambiguous@example.invalid",
+        passwordHash: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+    vi.mocked(prisma.workspaceMember.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.workspaceMember.findMany).mockResolvedValue([
+      { id: "member_1" },
+      { id: "member_2" },
+    ] as never);
 
     await expect(getCurrentWorkspaceContext()).resolves.toBeNull();
   });

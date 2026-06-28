@@ -201,7 +201,7 @@ export function ServiceConfigurationControls({
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
           <div>
             <p className="text-sm font-semibold text-slate-950">
-              Active monitoring
+              Monitoring enabled
             </p>
             <p className="mt-1 text-sm font-medium text-slate-500">
               {service.isActive ? "Enabled" : "Disabled"}

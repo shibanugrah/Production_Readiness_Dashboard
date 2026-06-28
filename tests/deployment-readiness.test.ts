@@ -70,4 +70,24 @@ describe("deployment readiness contracts", () => {
     expect(runbook).toContain("n8n is not configured by default");
     expect(runbook).not.toMatch(/render\.com|railway|fly\.io|supabase|neon/i);
   });
+
+  it("documents public demo scope without claiming future integrations are active", () => {
+    const readme = source("README.md");
+    const runbook = source("docs/runbooks/production-deployment.md");
+    const combined = `${readme}\n${runbook}`;
+
+    expect(combined).toContain(
+      "Scheduled checks are intentionally not configured for this free public demo.",
+    );
+    expect(combined).toContain("Owner/Admin users can run manual health checks.");
+    expect(combined).toContain(
+      "Automated alerting, paging, and production notification delivery are not connected.",
+    );
+    expect(combined).toContain(
+      "External integrations are future work and are not presented as active.",
+    );
+    expect(combined).not.toMatch(
+      /n8n is active|paging is active|external integrations are active|OAuth is active|SSO is active|MFA is active|production alerting is active/i,
+    );
+  });
 });

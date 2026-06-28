@@ -16,6 +16,10 @@ vi.mock("@/server/auth/password", () => ({
   verifyPassword: vi.fn(),
 }));
 
+vi.mock("@/server/public-demo", () => ({
+  getPublicDemoAvailability: vi.fn(),
+}));
+
 vi.mock("@/server/db", () => ({
   prisma: {
     user: {
@@ -24,8 +28,13 @@ vi.mock("@/server/db", () => ({
   },
 }));
 
-import { signInAction, signOutAction } from "@/server/auth/actions";
+import {
+  publicDemoSignInAction,
+  signInAction,
+  signOutAction,
+} from "@/server/auth/actions";
 import { prisma } from "@/server/db";
+import { getPublicDemoAvailability } from "@/server/public-demo";
 import {
   createSession,
   destroyCurrentSession,
@@ -84,6 +93,56 @@ describe("auth actions", () => {
     );
     expect(setSessionCookie).toHaveBeenCalledWith(
       "fresh-session-token",
+      expiresAt,
+    );
+  });
+
+  it("does not expose a public demo entry when access is disabled", async () => {
+    vi.mocked(getPublicDemoAvailability).mockResolvedValue({
+      kind: "disabled",
+      message: "Public demo access is disabled.",
+    });
+
+    await expect(publicDemoSignInAction()).rejects.toThrow(
+      "NEXT_REDIRECT:/signin",
+    );
+    expect(createSession).not.toHaveBeenCalled();
+  });
+
+  it("refuses public demo entry until real healthy evidence is available", async () => {
+    vi.mocked(getPublicDemoAvailability).mockResolvedValue({
+      kind: "unavailable",
+      message: "Public demo is waiting for a recent real successful Owner/Admin manual check.",
+      operatorHint: "Run one manual check.",
+    });
+
+    await expect(publicDemoSignInAction()).rejects.toThrow(
+      "NEXT_REDIRECT:/signin?demo=unavailable",
+    );
+    expect(createSession).not.toHaveBeenCalled();
+  });
+
+  it("creates a normal session only for the server-selected public demo Viewer", async () => {
+    const expiresAt = new Date(Date.now() + 60_000);
+    vi.mocked(getPublicDemoAvailability).mockResolvedValue({
+      kind: "available",
+      message: "Read-only public demo is ready.",
+      viewerUserId: "public_viewer_user",
+      workspaceId: "public_workspace",
+      workspaceSlug: "public-recruiter-demo",
+      latestHealthyCheckedAt: new Date(),
+    });
+    vi.mocked(createSession).mockResolvedValue({
+      token: "public-demo-session",
+      expiresAt,
+    });
+
+    await expect(publicDemoSignInAction()).rejects.toThrow(
+      "NEXT_REDIRECT:/",
+    );
+    expect(createSession).toHaveBeenCalledWith("public_viewer_user");
+    expect(setSessionCookie).toHaveBeenCalledWith(
+      "public-demo-session",
       expiresAt,
     );
   });

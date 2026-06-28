@@ -2,7 +2,7 @@
 
 Production Readiness Dashboard is the foundation for a multi-tenant operational control plane. Its first job is to prove that the app can start reproducibly, validate configuration, connect to PostgreSQL, and expose a safe self-health endpoint.
 
-This repository currently implements session-backed workspace access for the Phase 1 dashboard. It includes a workspace-scoped service registry domain, server-side service validation, local seed data, credentials-based demo authentication, Owner/Admin/Viewer permissions, a protected health-check runner, persisted health-check run history, secure operational-event ingestion, operator event triage, manual incident escalation, service audit logs, and a data-driven monitoring dashboard UI.
+This repository currently implements session-backed workspace access for the Phase 1 dashboard. It includes a workspace-scoped service registry domain, server-side service validation, local seed data, credentials-based demo authentication, optional one-click read-only public demo access, Owner/Admin/Viewer permissions, a protected health-check runner, persisted health-check run history, secure operational-event ingestion, operator event triage, manual incident escalation, service audit logs, and a data-driven monitoring dashboard UI.
 
 An external scheduler such as n8n can call the protected scheduled-run endpoint, but no scheduler is configured by default. Event retries, dead-letter queues, automatic remediation, deployment integrations, notifications, paging, external monitoring integrations, invitations, password reset, OAuth, SSO, MFA, and billing are not built yet.
 
@@ -39,6 +39,11 @@ For local Docker Compose usage, Prisma commands run from the host use `localhost
 | `DEMO_ADMIN_PASSWORD` | Local-only password used to hash the seeded Admin account. Do not commit it. |
 | `DEMO_VIEWER_EMAIL` | Email address used when seeding the local Viewer account. |
 | `DEMO_VIEWER_PASSWORD` | Local-only password used to hash the seeded Viewer account. Do not commit it. |
+| `PUBLIC_DEMO_ACCESS_ENABLED` | Enables the public read-only demo entry only when explicitly set to `true`. Defaults to disabled. |
+| `PUBLIC_DEMO_APP_BASE_URL` | Deployed app origin used for the public demo self-monitor service. Use HTTPS in production. |
+| `PUBLIC_DEMO_VIEWER_EMAIL` | Server-only identity for the dedicated passwordless public demo Viewer. Do not publish the value. |
+| `PUBLIC_DEMO_OWNER_EMAIL` | One-time seed identity for the operator-only public demo Owner. Do not publish the value. |
+| `PUBLIC_DEMO_OWNER_PASSWORD` | One-time seed password for the operator-only public demo Owner. Do not publish the value. |
 
 ## Docker
 
@@ -94,7 +99,7 @@ Seed the local workspace and services:
 npm run db:seed
 ```
 
-The seed creates the `Portfolio Operations` workspace, demo Owner/Admin/Viewer users from local environment values, the dashboard service, the demo monitored service, and one inactive placeholder service. Passwords are hashed before storage; plaintext demo passwords must stay only in local `.env` files. The seed does not create health-check history; manual or scheduled runner calls create real `HealthCheckRun` records and linked `HealthCheck` rows.
+The seed creates the `Portfolio Operations` workspace, demo Owner/Admin/Viewer users from local environment values, the dashboard service, the demo monitored service, and one inactive placeholder service. When the public-demo seed variables are present, it also creates the isolated `Public Demo` workspace with a dedicated operator Owner, a passwordless Viewer, one active self-monitor service, and one inactive failure/demo service. Passwords are hashed before storage; plaintext demo passwords must stay only in local `.env` files or the deployment secret store. The seed does not create health-check history; manual or scheduled runner calls create real `HealthCheckRun` records and linked `HealthCheck` rows.
 
 ## Authentication And Roles
 
@@ -108,7 +113,20 @@ Dashboard routes require a signed-in user. Sign in at `/signin` with one of the 
 
 Use the matching local password from `.env`; the repository intentionally contains only placeholders. Sign out from the sidebar user panel.
 
-Workspace access is resolved on the server from the authenticated session and `WorkspaceMember` rows. Browser-provided workspace IDs, user IDs, or roles are not trusted. Credentials-based demo authentication is suitable for local verification only and is not a complete enterprise identity system.
+Workspace access is resolved on the server from the authenticated session and `WorkspaceMember` rows. Browser-provided workspace IDs, user IDs, or roles are not trusted. Credentials-based demo authentication is suitable for local verification only and is not a complete enterprise identity system. Public recruiter demo access, when enabled, uses `Explore read-only demo` to create a normal server-side session for the dedicated Viewer account without publishing Viewer credentials.
+
+## Public Recruiter Demo
+
+Public demo access is disabled by default. Enable it only with `PUBLIC_DEMO_ACCESS_ENABLED=true` plus the server-side public-demo configuration in the deployment secret store.
+
+The public demo uses the deterministic `Public Demo` workspace. Its normal state has one active service, `Production Readiness Dashboard`, pointed at `PUBLIC_DEMO_APP_BASE_URL` with `/api/health` and the deployed `APP_VERSION`. The service remains `Unknown` until an Owner/Admin runs a real manual health check and a successful persisted result exists. The one-click demo refuses entry until that recent Healthy evidence is present.
+
+Known scope for the public demo:
+
+- Scheduled checks are intentionally not configured for this free public demo.
+- Owner/Admin users can run manual health checks.
+- Automated alerting, paging, and production notification delivery are not connected.
+- External integrations are future work and are not presented as active.
 
 ## Verification
 

@@ -202,15 +202,32 @@ describe("operational event triage", () => {
 
   it("denies Viewer triage without audit records", async () => {
     const client = new FakeTriageClient();
+    const viewer = context(WorkspaceRole.VIEWER);
 
     await expect(
       acknowledgeOperationalEvent(
-        context(WorkspaceRole.VIEWER),
+        viewer,
         "event_1",
         client as never,
       ),
     ).rejects.toThrow(PermissionDeniedError);
+    await expect(
+      createIncidentFromOperationalEvent(
+        viewer,
+        "event_1",
+        client as never,
+      ),
+    ).rejects.toThrow(PermissionDeniedError);
+    await expect(
+      resolveIncident(
+        viewer,
+        "incident_1",
+        "Resolved.",
+        client as never,
+      ),
+    ).rejects.toThrow(PermissionDeniedError);
     expect(client.auditLogs).toHaveLength(0);
+    expect(client.incidents).toHaveLength(0);
   });
 
   it("returns not found for cross-workspace event triage", async () => {

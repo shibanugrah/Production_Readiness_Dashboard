@@ -75,6 +75,14 @@ export default function ReadinessPage() {
             />
           </Panel>
         </div>
+        <Panel title="Public Demo Scope">
+          <div className="grid gap-3 text-sm leading-5 text-slate-600 md:grid-cols-2">
+            <p>Scheduled checks are intentionally not configured for this free public demo.</p>
+            <p>Owner/Admin users can run manual health checks.</p>
+            <p>Automated alerting, paging, and production notification delivery are not connected.</p>
+            <p>External integrations are future work and are not presented as active.</p>
+          </div>
+        </Panel>
       </div>
     </AuthenticatedShell>
   );

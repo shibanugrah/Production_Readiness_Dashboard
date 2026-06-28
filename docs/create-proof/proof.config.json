@@ -1,0 +1,251 @@
+{
+  "app_name": "Production Readiness Dashboard",
+  "mode": "capture-plan-only",
+  "audience": [
+    "recruiters",
+    "startup founders",
+    "hiring managers for full-stack/product-engineering roles"
+  ],
+  "primary_output": "linkedin-featured-pdf-6-8-pages",
+  "secondary_outputs": [
+    "portfolio-case-study-draft",
+    "45-75-second-demo-video-storyboard",
+    "README-proof-section-plan"
+  ],
+  "positioning": "AI-native product engineer who ships trustworthy full-stack SaaS workflows with real backend logic, permission boundaries, operational evidence, and failure handling.",
+  "live_demo_url": "https://production-readiness-dashboard.vercel.app/",
+  "capture_method": {
+    "selected": "no_capture_yet",
+    "recommended_next": "Use a clean browser profile or Playwright storage state after user-approved demo sign-in. Do not store or print credentials.",
+    "reason": "Dashboard routes require authentication. Public live checks can verify deployment health, but protected screenshots need approved demo session state."
+  },
+  "capture_scope": {
+    "environment": "public-live-demo",
+    "approved_hosts": [
+      "production-readiness-dashboard.vercel.app"
+    ],
+    "requires_signed_in_state": true,
+    "user_login_required": true,
+    "allow_browser_history": false,
+    "upload_allowed": false,
+    "publish_allowed": false,
+    "screenshots_allowed_now": false,
+    "pdf_generation_allowed_now": false,
+    "video_recording_allowed_now": false
+  },
+  "claim_categories": [
+    "implemented",
+    "needs_verification",
+    "roadmap",
+    "private_do_not_publish"
+  ],
+  "verified_public_checks": [
+    {
+      "id": "LIVE-HEALTH-2026-06-28",
+      "checked_at_local": "2026-06-28T18:08:45+05:30",
+      "url": "https://production-readiness-dashboard.vercel.app/api/health",
+      "http_status": 200,
+      "body_status": "ok",
+      "service": "production-readiness-dashboard",
+      "version": "v0.1.0",
+      "database": "connected",
+      "note": "Public self-health endpoint only. Timing from this manual network check is not a product performance claim."
+    },
+    {
+      "id": "LIVE-DEMO-MODES-2026-06-28",
+      "checked_at_local": "2026-06-28T18:08:45+05:30",
+      "url": "https://production-readiness-dashboard.vercel.app/api/demo-service/health?mode=healthy",
+      "http_status": 404,
+      "body_status": "demo health endpoint is disabled",
+      "note": "Controllable demo health modes are disabled in production and should not be used as public live evidence."
+    },
+    {
+      "id": "LIVE-AUTH-REDIRECT-2026-06-28",
+      "checked_at_local": "2026-06-28T18:09:02+05:30",
+      "urls_checked": [
+        "/",
+        "/services",
+        "/signin"
+      ],
+      "result": "Protected dashboard routes render a redirect to /signin when no session is present; /signin is public and shows seeded demo-account sign-in copy."
+    }
+  ],
+  "repository_evidence": {
+    "readme": "README.md",
+    "deployment_runbook": "docs/runbooks/production-deployment.md",
+    "scheduler_runbook": "docs/runbooks/health-check-scheduler.md",
+    "event_ingestion_runbook": "docs/runbooks/operational-event-ingestion.md",
+    "event_triage_runbook": "docs/runbooks/operational-event-triage.md",
+    "tests": {
+      "command": "npm run test",
+      "result": "27 test files passed, 134 tests passed on 2026-06-28",
+      "notable_coverage": [
+        "health-check classification",
+        "manual and scheduled health-check runs",
+        "dashboard read models",
+        "RBAC mutation denial",
+        "operational event ingestion and triage",
+        "deployment readiness contracts",
+        "scheduler workflow template contract"
+      ]
+    }
+  },
+  "proof_states": {
+    "steady_state_cover": {
+      "status": "needs_verification",
+      "required_state": "Deployed dashboard service is Healthy after a real Owner/Admin manual check. Overview scheduler evidence clearly says Not configured because no scheduled run evidence exists.",
+      "public_use": "cover and main health evidence",
+      "current_gap": "Public API health is verified, but signed-in dashboard state was not inspected. Existing local screenshots show scheduled monitoring Active and are not suitable for this cover state."
+    },
+    "failure_handling_secondary": {
+      "status": "needs_verification",
+      "required_state": "A valid HTTP 200 health response with valid version but latency above the 1500 ms threshold is classified Degraded.",
+      "public_use": "secondary proof item only, never the cover state",
+      "current_gap": "Code and tests prove the classifier. A safe live/demo persisted screenshot of this exact latency-driven degraded state still needs approval and repeat capture."
+    }
+  },
+  "pages": [
+    {
+      "id": "S-01-overview-steady-state",
+      "route": "/",
+      "claim_status": "needs_verification",
+      "title": "Overview - healthy manual-check evidence with scheduler Not configured",
+      "must_show": [
+        "Latest manual health-check cycle",
+        "Deployed dashboard service Healthy",
+        "Persisted counts and timestamps",
+        "Scheduled monitoring evidence: Not configured"
+      ],
+      "capture_notes": [
+        "Repeat capture after approved sign-in and fresh manual check.",
+        "Crop to app viewport.",
+        "Do not use older screenshots that show scheduler Active."
+      ]
+    },
+    {
+      "id": "S-02-services-list",
+      "route": "/services",
+      "claim_status": "needs_verification",
+      "title": "Services - persisted status and last-check evidence",
+      "must_show": [
+        "Real persisted service rows",
+        "Status, last checked, last healthy, latest latency",
+        "No fabricated uptime or static telemetry"
+      ],
+      "capture_notes": [
+        "Repeat capture in clean state.",
+        "Crop or blur internal/local URLs if visible.",
+        "Use public-safe service names."
+      ]
+    },
+    {
+      "id": "S-03-service-detail-healthy",
+      "route": "/services/[serviceId]",
+      "claim_status": "needs_verification",
+      "title": "Service detail - healthy result, latency, version, history, configuration summary",
+      "must_show": [
+        "Current status Healthy",
+        "Latest result Success",
+        "HTTP 200, latency, observed version",
+        "Persisted history strip/table",
+        "Configuration summary without private URLs or emails"
+      ],
+      "capture_notes": [
+        "Use the deployed dashboard service detail if it is public-safe.",
+        "Crop out audit rows or blur actor emails.",
+        "Repeat after the final healthy manual check."
+      ]
+    },
+    {
+      "id": "S-04-service-detail-degraded-latency-secondary",
+      "route": "/services/[serviceId]",
+      "claim_status": "needs_verification",
+      "title": "Service detail - secondary degraded latency proof",
+      "must_show": [
+        "HTTP 200",
+        "Valid observed version",
+        "Latency above 1500 ms threshold",
+        "Degraded classification message caused by latency"
+      ],
+      "capture_notes": [
+        "Secondary proof only.",
+        "Requires a safe approved endpoint or demo service that produces slow valid health JSON.",
+        "After capture, restore the service to Healthy before capturing the cover state."
+      ]
+    },
+    {
+      "id": "S-05-events",
+      "route": "/events",
+      "claim_status": "needs_verification",
+      "title": "Events - safe operational-event triage workflow",
+      "must_show": [
+        "Persisted event row from an authenticated source",
+        "Linked service when safe",
+        "Triage controls for Owner/Admin",
+        "Safe payload preview only"
+      ],
+      "capture_notes": [
+        "Capture only if actual demo evidence is available.",
+        "Blur or crop idempotency keys, lookup IDs, local source details, and any sensitive metadata.",
+        "Never show ingestion keys or authorization headers."
+      ]
+    },
+    {
+      "id": "S-06-incidents",
+      "route": "/incidents",
+      "claim_status": "needs_verification",
+      "title": "Incidents - safe incident timeline from a real event",
+      "must_show": [
+        "Incident created from an operational event",
+        "Source event linkage",
+        "Manual resolution/audit timeline if available"
+      ],
+      "capture_notes": [
+        "Capture only if actual incident demo evidence exists.",
+        "Current inspected final screenshot was empty, so do not include incidents yet.",
+        "Blur actor emails and internal IDs if timeline is shown."
+      ]
+    },
+    {
+      "id": "S-07-readiness",
+      "route": "/readiness",
+      "claim_status": "implemented",
+      "title": "Readiness - evidence-based unavailable integrations",
+      "must_show": [
+        "Readiness scoring not connected",
+        "Checklist unavailable",
+        "Deployment integration not connected",
+        "Expected and observed versions are on service records"
+      ],
+      "capture_notes": [
+        "Safe to capture after sign-in.",
+        "Crop to app viewport.",
+        "Use as honest scope boundary rather than a feature claim."
+      ]
+    },
+    {
+      "id": "S-08-viewer-readonly",
+      "route": "/services",
+      "claim_status": "needs_verification",
+      "title": "Viewer role - read-only and denied mutation evidence",
+      "must_show": [
+        "Viewer role state",
+        "Read-only banner or disabled mutation control",
+        "No credentials or personal data"
+      ],
+      "capture_notes": [
+        "Use a clean viewer demo session.",
+        "Crop user panel or ensure it contains no email address.",
+        "Use tests/server evidence for direct denied mutation attempts; do not show credentials."
+      ]
+    }
+  ],
+  "do_not_capture": [
+    "Passwords, credentials, API keys, event ingestion keys, scheduler secrets, environment variables, database URLs",
+    "Neon, Vercel, provider dashboards, terminals, logs, DevTools, source code, private repository URLs",
+    "Browser chrome, bookmarks, notifications, desktop taskbar, unrelated apps or tabs",
+    "Internal endpoints, scheduler secret configuration, full idempotency keys, lookup IDs, raw payloads with sensitive fields",
+    "Old screenshots showing scheduler Active when the intended proof state is Not configured",
+    "Claims of active scheduled monitoring, automated alerting, paging, customers, revenue, uptime, scale, or external integrations"
+  ]
+}

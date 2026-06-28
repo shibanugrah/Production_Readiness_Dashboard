@@ -56,15 +56,47 @@ export async function getCurrentWorkspaceContext(
     },
   });
 
-  if (!membership) {
+  const resolvedMembership =
+    membership ??
+    (workspaceSlug === "portfolio-operations"
+      ? await resolveOnlyWorkspaceMembership(session.userId)
+      : null);
+
+  if (!resolvedMembership) {
     return null;
   }
 
   return {
-    workspaceId: membership.workspaceId,
-    userId: membership.userId,
-    user: membership.user,
-    workspace: membership.workspace,
-    role: membership.role,
+    workspaceId: resolvedMembership.workspaceId,
+    userId: resolvedMembership.userId,
+    user: resolvedMembership.user,
+    workspace: resolvedMembership.workspace,
+    role: resolvedMembership.role,
   };
+}
+
+async function resolveOnlyWorkspaceMembership(userId: string) {
+  const memberships = await prisma.workspaceMember.findMany({
+    where: { userId },
+    orderBy: { createdAt: "asc" },
+    take: 2,
+    include: {
+      workspace: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+        },
+      },
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+  });
+
+  return memberships.length === 1 ? memberships[0] : null;
 }

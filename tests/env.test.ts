@@ -88,12 +88,45 @@ describe("environment validation", () => {
     ).toThrow(/DEMO_SERVICE_HEALTH_ENABLED/);
   });
 
+  it("requires explicit safe server-side config before enabling public demo access", () => {
+    expect(() =>
+      validateEnv({
+        ...validProductionEnv,
+        PUBLIC_DEMO_ACCESS_ENABLED: "true",
+      }),
+    ).toThrow(/PUBLIC_DEMO_APP_BASE_URL/);
+
+    expect(() =>
+      validateEnv({
+        ...validProductionEnv,
+        PUBLIC_DEMO_ACCESS_ENABLED: "true",
+        PUBLIC_DEMO_APP_BASE_URL: "http://localhost:3000",
+        PUBLIC_DEMO_VIEWER_EMAIL: "viewer@example.invalid",
+      }),
+    ).toThrow(/PUBLIC_DEMO_APP_BASE_URL/);
+  });
+
+  it("accepts public demo access only with explicit runtime configuration", () => {
+    expect(
+      validateEnv({
+        ...validProductionEnv,
+        PUBLIC_DEMO_ACCESS_ENABLED: "true",
+        PUBLIC_DEMO_APP_BASE_URL: "https://readiness.example.invalid",
+        PUBLIC_DEMO_VIEWER_EMAIL: "viewer@example.invalid",
+      }),
+    ).toMatchObject({
+      PUBLIC_DEMO_ACCESS_ENABLED: "true",
+      PUBLIC_DEMO_APP_BASE_URL: "https://readiness.example.invalid",
+    });
+  });
+
   it("accepts valid production values without exposing them", () => {
     expect(validateEnv(validProductionEnv)).toMatchObject({
       NODE_ENV: "production",
       APP_VERSION: "2026.06.27-test-build",
       HEALTH_CHECK_LOCAL_ALLOWLIST_ENABLED: "false",
       DEMO_SERVICE_HEALTH_ENABLED: "false",
+      PUBLIC_DEMO_ACCESS_ENABLED: "false",
     });
   });
 });
@@ -108,4 +141,5 @@ const validProductionEnv = {
   HEALTH_CHECK_LOCAL_ALLOWLIST_ENABLED: "false",
   HEALTH_CHECK_LOCAL_ALLOWED_TARGETS: "",
   DEMO_SERVICE_HEALTH_ENABLED: "false",
+  PUBLIC_DEMO_ACCESS_ENABLED: "false",
 } as NodeJS.ProcessEnv;
