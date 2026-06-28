@@ -19,7 +19,6 @@ import {
 import { ServiceStatusCard } from "@/components/dashboard/service-components";
 import { CheckResultBadge } from "@/components/dashboard/status";
 import { canRunChecks } from "@/server/auth/permissions";
-import { isLocalDemoActionsEnabled } from "@/server/dashboard/local-demo";
 import {
   getOverviewSummary,
   getSchedulerMonitoringState,
@@ -69,7 +68,7 @@ export default async function OverviewPage({
           description="Current readiness is calculated from active services and persisted health-check evidence."
           actions={
             <RunChecksControl
-              enabled={isLocalDemoActionsEnabled() && canRunChecks(summary)}
+              enabled={canRunChecks(summary)}
               returnPath="/"
               result={checksResult}
             />
@@ -154,7 +153,7 @@ export default async function OverviewPage({
           ) : (
             <EmptyState
               title="No check cycles recorded"
-              description="Manual runs will appear here after an Owner or Admin runs local checks."
+              description="Manual runs will appear here after an Owner or Admin runs manual checks."
             />
           )}
           <div className={`mt-3 flex flex-col gap-2 rounded-md border px-3 py-2 text-sm md:flex-row md:items-center md:justify-between ${schedulerToneClasses[schedulerState.tone]}`}>
@@ -182,7 +181,7 @@ export default async function OverviewPage({
         {summary.services.length === 0 ? (
           <EmptyState
             title="No services registered"
-            description="Seed the database or add a local demo service to begin monitoring."
+            description="Add a service to begin monitoring."
           />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

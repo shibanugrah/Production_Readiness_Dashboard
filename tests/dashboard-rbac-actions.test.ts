@@ -1,13 +1,14 @@
 import { HealthCheckRunTriggerType, WorkspaceRole } from "@prisma/client";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   addLocalDemoServiceAction,
-  runLocalChecksAction,
+  runManualChecksAction,
 } from "@/server/dashboard/actions";
 import { getDashboardContext } from "@/server/dashboard/read-models";
 import { runHealthChecks } from "@/server/health-checks/runner";
 import { createManagedService } from "@/server/services/management";
+import { revalidatePath } from "next/cache";
 
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
@@ -20,7 +21,7 @@ vi.mock("next/cache", () => ({
 }));
 
 vi.mock("@/server/dashboard/local-demo", () => ({
-  isLocalDemoActionsEnabled: () => true,
+  isLocalDemoActionsEnabled: () => false,
 }));
 
 vi.mock("@/server/dashboard/read-models", () => ({
@@ -68,32 +69,91 @@ function context(role: WorkspaceRole) {
 }
 
 describe("dashboard mutation RBAC", () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalAppVersion = process.env.APP_VERSION;
+  const originalLocalAllowlist = process.env.HEALTH_CHECK_LOCAL_ALLOWLIST_ENABLED;
+
+  beforeEach(() => {
+    vi.mocked(getDashboardContext).mockReset();
+    vi.mocked(runHealthChecks).mockReset();
+    vi.mocked(createManagedService).mockReset();
+    vi.mocked(revalidatePath).mockReset();
+    Reflect.set(process.env, "NODE_ENV", "production");
+    process.env.APP_VERSION = "bb51b65";
+    process.env.HEALTH_CHECK_LOCAL_ALLOWLIST_ENABLED = "false";
+  });
+
+  afterEach(() => {
+    Reflect.set(process.env, "NODE_ENV", originalNodeEnv);
+
+    if (originalAppVersion === undefined) {
+      delete process.env.APP_VERSION;
+    } else {
+      process.env.APP_VERSION = originalAppVersion;
+    }
+
+    if (originalLocalAllowlist === undefined) {
+      delete process.env.HEALTH_CHECK_LOCAL_ALLOWLIST_ENABLED;
+    } else {
+      process.env.HEALTH_CHECK_LOCAL_ALLOWLIST_ENABLED = originalLocalAllowlist;
+    }
+  });
+
   it("denies Viewer run-check attempts server-side", async () => {
     vi.mocked(getDashboardContext).mockResolvedValue(context(WorkspaceRole.VIEWER));
     const formData = new FormData();
     formData.set("returnPath", "/");
 
-    await expect(runLocalChecksAction(formData)).rejects.toThrow(
+    await expect(runManualChecksAction(formData)).rejects.toThrow(
       "NEXT_REDIRECT:/?checks=denied",
     );
     expect(runHealthChecks).not.toHaveBeenCalled();
   });
 
-  it("allows Admin users to run checks for their workspace", async () => {
-    vi.mocked(getDashboardContext).mockResolvedValue(context(WorkspaceRole.ADMIN));
+  it.each([WorkspaceRole.OWNER, WorkspaceRole.ADMIN])(
+    "allows %s users to run production-mode manual checks for their workspace",
+    async (role) => {
+      vi.mocked(getDashboardContext).mockResolvedValue(context(role));
+      vi.mocked(runHealthChecks).mockResolvedValue({
+        checked: 1,
+        healthy: 1,
+        degraded: 0,
+        down: 0,
+        skipped: 0,
+        errors: 0,
+      });
+      const formData = new FormData();
+      formData.set("returnPath", "/services/service_1");
+
+      await expect(runManualChecksAction(formData)).rejects.toThrow(
+        "NEXT_REDIRECT:/services/service_1?checks=success",
+      );
+      expect(runHealthChecks).toHaveBeenCalledWith(undefined, {
+        workspaceId: "workspace_1",
+        triggerType: HealthCheckRunTriggerType.MANUAL,
+        requestedByUserId: "user_1",
+      });
+      expect(revalidatePath).toHaveBeenCalledWith("/");
+      expect(revalidatePath).toHaveBeenCalledWith("/services");
+      expect(revalidatePath).toHaveBeenCalledWith("/services/service_1");
+    },
+  );
+
+  it("keeps empty production history honest after a zero-service manual run", async () => {
+    vi.mocked(getDashboardContext).mockResolvedValue(context(WorkspaceRole.OWNER));
     vi.mocked(runHealthChecks).mockResolvedValue({
-      checked: 1,
-      healthy: 1,
+      checked: 0,
+      healthy: 0,
       degraded: 0,
       down: 0,
       skipped: 0,
       errors: 0,
     });
     const formData = new FormData();
-    formData.set("returnPath", "/services");
+    formData.set("returnPath", "/");
 
-    await expect(runLocalChecksAction(formData)).rejects.toThrow(
-      "NEXT_REDIRECT:/services?checks=success",
+    await expect(runManualChecksAction(formData)).rejects.toThrow(
+      "NEXT_REDIRECT:/?checks=success",
     );
     expect(runHealthChecks).toHaveBeenCalledWith(undefined, {
       workspaceId: "workspace_1",

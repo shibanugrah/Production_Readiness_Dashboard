@@ -38,6 +38,8 @@ This runbook defines the provider-neutral release contract for Production Readin
 - `DEMO_SERVICE_HEALTH_ENABLED` is not `true`, so controllable demo health modes are not publicly exposed.
 - Owner/Admin/Viewer authorization still works after release.
 - Viewer mutation denial still works server-side.
+- Owner/Admin users can run the manual health-check action against persisted service configuration.
+- Manual health-check runs create persisted `MANUAL` `HealthCheckRun` evidence without requiring local target allowlists.
 - The chosen hosting provider terminates HTTPS before user traffic reaches the app.
 - No secrets appear in client bundles, logs, screenshots, repository files, or support artifacts.
 

@@ -17,6 +17,38 @@ describe("dashboard UI cleanup contracts", () => {
     expect(appShell).not.toContain("text-[10px]");
   });
 
+  it("keeps manual health-check controls production-capable and role-aware", () => {
+    const appShell = source("src/components/dashboard/app-shell.tsx");
+    const authenticatedShell = source(
+      "src/components/dashboard/authenticated-shell.tsx",
+    );
+    const controls = source("src/components/dashboard/local-actions.tsx");
+    const overview = source("src/app/page.tsx");
+    const serviceDetail = source("src/app/services/[serviceId]/page.tsx");
+
+    expect(appShell).toContain("All environments");
+    expect(appShell).not.toContain(">Local<");
+    expect(authenticatedShell).toContain("canRunChecks={canRunChecks(context)}");
+    expect(controls).toContain("Run manual checks");
+    expect(controls).not.toContain("Run local checks");
+    expect(overview).not.toContain("isLocalDemoActionsEnabled() && canRunChecks");
+    expect(serviceDetail).not.toContain("isLocalDemoActionsEnabled() && canRunChecks");
+  });
+
+  it("keeps empty health-check history honest with a clear manual next action", () => {
+    const overview = source("src/app/page.tsx");
+    const serviceDetail = source("src/app/services/[serviceId]/page.tsx");
+
+    expect(overview).toContain("No check cycles recorded");
+    expect(overview).toContain(
+      "Manual runs will appear here after an Owner or Admin runs manual checks.",
+    );
+    expect(serviceDetail).toContain(
+      "Run manual checks to create persisted health-check history.",
+    );
+    expect(`${overview}\n${serviceDetail}`).not.toContain("runs local checks");
+  });
+
   it("describes Settings by the workflows that are actually implemented", () => {
     const settingsPage = source("src/app/settings/page.tsx");
 

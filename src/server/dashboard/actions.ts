@@ -23,7 +23,16 @@ function getReturnPath(formData: FormData) {
     : "/";
 }
 
-export async function runLocalChecksAction(formData: FormData) {
+function revalidateHealthCheckViews(returnPath: string) {
+  revalidatePath("/");
+  revalidatePath("/services");
+
+  if (/^\/services\/[^/?#]+$/.test(returnPath)) {
+    revalidatePath(returnPath);
+  }
+}
+
+export async function runManualChecksAction(formData: FormData) {
   const returnPath = getReturnPath(formData);
   const dashboard = await getDashboardContext();
 
@@ -35,18 +44,13 @@ export async function runLocalChecksAction(formData: FormData) {
     redirect(`${returnPath}?checks=denied`);
   }
 
-  if (!isLocalDemoActionsEnabled()) {
-    redirect(`${returnPath}?checks=disabled`);
-  }
-
   try {
     await runHealthChecks(undefined, {
       workspaceId: dashboard.context.workspaceId,
       triggerType: HealthCheckRunTriggerType.MANUAL,
       requestedByUserId: dashboard.context.user.id,
     });
-    revalidatePath("/");
-    revalidatePath("/services");
+    revalidateHealthCheckViews(returnPath);
   } catch {
     redirect(`${returnPath}?checks=error`);
   }

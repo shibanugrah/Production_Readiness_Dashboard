@@ -24,7 +24,6 @@ import {
 import { ServiceConfigurationControls } from "@/components/dashboard/service-configuration-controls";
 import { CheckResultBadge, StatusBadge, statusTone } from "@/components/dashboard/status";
 import { canManageServices, canRunChecks } from "@/server/auth/permissions";
-import { isLocalDemoActionsEnabled } from "@/server/dashboard/local-demo";
 import { getServiceDetailReadModel } from "@/server/dashboard/read-models";
 
 function DetailRow({
@@ -174,7 +173,7 @@ export default async function ServiceDetailPage({
             </div>
           </div>
           <RunChecksControl
-            enabled={isLocalDemoActionsEnabled() && canRunChecks(model)}
+            enabled={canRunChecks(model)}
             returnPath={`/services/${service.id}`}
             result={checksResult}
             variant="secondary"
@@ -292,7 +291,7 @@ export default async function ServiceDetailPage({
                 empty={
                   <EmptyState
                     title="No checks recorded"
-                    description="Run local checks to create persisted health-check history."
+                    description="Run manual checks to create persisted health-check history."
                   />
                 }
                 rows={history.slice(0, 8).map((check) => ({

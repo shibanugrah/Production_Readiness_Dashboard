@@ -99,7 +99,7 @@ export default async function ServicesPage({
             empty={
               <EmptyState
                 title="No matching services"
-                description="Adjust filters or add a local demo service."
+                description="Adjust filters or add a service."
               />
             }
             rows={model.filteredServices.map((service) => ({

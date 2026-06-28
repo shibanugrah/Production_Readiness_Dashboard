@@ -112,7 +112,7 @@ Workspace access is resolved on the server from the authenticated session and `W
 
 ## Verification
 
-Run the local checks:
+Run the verification checks:
 
 ```powershell
 npm run db:generate
@@ -211,9 +211,11 @@ Modes:
 
 Unsupported modes return HTTP 400. In production mode, controllable demo modes are disabled.
 
-## Run A Health-Check Cycle Locally
+## Run A Manual Health-Check Cycle
 
-Owner and Admin users can run checks from the local dashboard UI. Those manual runs create `HealthCheckRun` records with `triggerType=MANUAL` and the requesting user recorded server-side.
+Owner and Admin users can run checks from the dashboard UI in local and production deployments. Those manual runs create `HealthCheckRun` records with `triggerType=MANUAL` and the requesting user recorded server-side. Viewer users remain read-only, and direct server-side attempts are denied.
+
+Manual checks always use persisted service configuration for the signed-in workspace. The local target allowlist only permits local/private targets during explicit local development; it does not gate the production-capable manual action. Production checks still reject localhost, private network, metadata, unsafe scheme, credential-bearing, and unsafe DNS targets.
 
 The internal scheduled-run boundary is protected by `INTERNAL_HEALTH_CHECK_SECRET`. Use the value already in your local `.env`; do not print or commit it.
 

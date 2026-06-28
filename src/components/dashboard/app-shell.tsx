@@ -201,11 +201,7 @@ function SidebarContent({
   );
 }
 
-function TopBar({
-  canRunLocalChecks,
-}: {
-  canRunLocalChecks: boolean;
-}) {
+function TopBar({ canRunChecks }: { canRunChecks: boolean }) {
   const pathname = usePathname();
 
   return (
@@ -214,7 +210,7 @@ function TopBar({
         <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-3">
           <button className="hidden h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 shadow-sm sm:inline-flex">
             <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            Local
+            All environments
             <span className="ml-2 text-slate-500">v</span>
           </button>
           <button className="hidden h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 shadow-sm md:inline-flex">
@@ -232,7 +228,7 @@ function TopBar({
               className="h-10 w-full rounded-md border border-slate-200 bg-white pl-9 pr-3 text-sm font-medium text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
             />
           </label>
-          {canRunLocalChecks ? (
+          {canRunChecks ? (
             <RunChecksControl
               enabled
               returnPath={pathname}
@@ -273,11 +269,11 @@ function MobileTopBar({
 export function AppShell({
   children,
   user,
-  canRunLocalChecks,
+  canRunChecks,
 }: {
   children: ReactNode;
   user: AppShellUser;
-  canRunLocalChecks: boolean;
+  canRunChecks: boolean;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -304,7 +300,7 @@ export function AppShell({
           <MobileTopBar openDrawer={() => setDrawerOpen(true)} />
         </div>
         <div className="hidden lg:block">
-          <TopBar canRunLocalChecks={canRunLocalChecks} />
+          <TopBar canRunChecks={canRunChecks} />
         </div>
         <main className="mx-auto w-full max-w-[1328px] overflow-x-hidden px-4 py-5 md:px-7">
           {children}

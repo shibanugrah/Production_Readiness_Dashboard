@@ -4,6 +4,7 @@ import {
   OperationalEventSeverity,
   OperationalEventStatus,
   OperationalEventType,
+  ServiceEnvironment,
   ServiceStatus,
 } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
@@ -16,6 +17,7 @@ import {
   getOverviewSummary,
   getSchedulerMonitoringState,
   getServiceDetailReadModel,
+  getServiceListReadModel,
   getSettingsReadModel,
   ServiceWithLatestCheck,
 } from "@/server/dashboard/read-models";
@@ -104,6 +106,40 @@ function scheduledRunFixture(status: HealthCheckRunStatus) {
     errorMessage: status === HealthCheckRunStatus.FAILED ? "runner failed" : null,
     createdAt: new Date("2026-06-26T00:00:00.000Z"),
     updatedAt: new Date("2026-06-26T00:00:05.000Z"),
+  };
+}
+
+function dashboardServiceFixture(
+  overrides: Partial<{
+    id: string;
+    name: string;
+    slug: string;
+    baseUrl: string;
+    environment: ServiceEnvironment;
+    status: ServiceStatus;
+    isActive: boolean;
+  }> = {},
+) {
+  const id = overrides.id ?? "service_1";
+
+  return {
+    id,
+    workspaceId: "workspace_a",
+    name: overrides.name ?? "Production API",
+    slug: overrides.slug ?? "production-api",
+    baseUrl: overrides.baseUrl ?? "https://production.example.test",
+    healthPath: "/api/health",
+    environment: overrides.environment ?? ServiceEnvironment.PRODUCTION,
+    expectedVersion: null,
+    status: overrides.status ?? ServiceStatus.UNKNOWN,
+    isActive: overrides.isActive ?? true,
+    lastCheckedAt: null,
+    lastHealthyAt: null,
+    checkLockToken: null,
+    checkLockExpiresAt: null,
+    createdAt: new Date("2026-06-26T00:00:00.000Z"),
+    updatedAt: new Date("2026-06-26T00:00:00.000Z"),
+    healthChecks: [],
   };
 }
 
@@ -210,6 +246,56 @@ describe("dashboard read model calculations", () => {
       workspaceId: "workspace_b",
     } as unknown as Parameters<typeof getServiceListReadModel>[0]);
 
+    expect(prisma.service.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { workspaceId: "workspace_a" },
+      }),
+    );
+  });
+
+  it("defaults service filtering to all environments without hiding production services", async () => {
+    vi.mocked(getCurrentWorkspaceContext).mockResolvedValue({
+      workspaceId: "workspace_a",
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        name: "Demo Owner",
+        email: "owner@example.local",
+      },
+      workspace: {
+        id: "workspace_a",
+        name: "Workspace A",
+        slug: "workspace-a",
+      },
+      role: "OWNER",
+    });
+    vi.mocked(prisma.service.findMany).mockResolvedValue([
+      dashboardServiceFixture({
+        id: "service_prod",
+        slug: "production-dashboard",
+        environment: ServiceEnvironment.PRODUCTION,
+      }),
+      dashboardServiceFixture({
+        id: "service_local",
+        slug: "local-dashboard",
+        name: "Local Dashboard",
+        baseUrl: "http://app:3000",
+        environment: ServiceEnvironment.LOCAL,
+      }),
+    ] as never);
+
+    const allServices = await getServiceListReadModel({ environment: "all" });
+    const productionServices = await getServiceListReadModel({
+      environment: ServiceEnvironment.PRODUCTION,
+    });
+
+    expect(allServices?.filteredServices.map((service) => service.id)).toEqual([
+      "service_prod",
+      "service_local",
+    ]);
+    expect(productionServices?.filteredServices.map((service) => service.id)).toEqual([
+      "service_prod",
+    ]);
     expect(prisma.service.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { workspaceId: "workspace_a" },

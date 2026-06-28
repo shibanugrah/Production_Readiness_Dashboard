@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 
 import { FormField, PrimaryButton, SecondaryButton } from "@/components/dashboard/primitives";
-import { runLocalChecksAction } from "@/server/dashboard/actions";
+import { runManualChecksAction } from "@/server/dashboard/actions";
 import { createServiceAction } from "@/server/services/actions";
 
 const serviceEnvironments = ["LOCAL", "PREVIEW", "STAGING", "PRODUCTION"];
@@ -62,12 +62,12 @@ export function RunChecksControl({
         : result === "denied"
           ? "Your role cannot run checks."
         : result === "disabled"
-          ? "Local checks are disabled."
+          ? "Manual checks are unavailable."
           : null;
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <form action={runLocalChecksAction}>
+      <form action={runManualChecksAction}>
         <input type="hidden" name="returnPath" value={returnPath} />
         <SubmitButton
           pendingText="Running..."
@@ -77,7 +77,7 @@ export function RunChecksControl({
               : "inline-flex h-10 items-center justify-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm shadow-blue-100 hover:bg-blue-700"
           }
         >
-          {variant === "topbar" ? "Run Checks" : "Run local checks"}
+          {variant === "topbar" ? "Run Checks" : "Run manual checks"}
         </SubmitButton>
       </form>
       {message && variant !== "topbar" ? (
@@ -160,7 +160,7 @@ export function AddServiceDrawer({
         : result === "denied"
           ? "Your role cannot create services."
           : result === "disabled"
-            ? "Local service creation is disabled."
+            ? "Service creation is unavailable."
             : null);
 
   return (
@@ -242,7 +242,7 @@ export function AddServiceDrawer({
                     required
                     name="baseUrl"
                     className={inputClass}
-                    placeholder="http://app:3000"
+                    placeholder="https://api.example.com"
                   />
                   <FieldErrors errors={state.fieldErrors.baseUrl} />
                 </FormField>
