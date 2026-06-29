@@ -15,6 +15,15 @@ describe("Prisma migration script contract", () => {
     expect(packageJson.scripts["db:migrate"]).toBe("prisma migrate deploy");
     expect(packageJson.scripts["db:migrate:dev"]).toBe("prisma migrate dev");
     expect(packageJson.scripts["db:migrate:status"]).toBe("prisma migrate status");
+    expect(packageJson.scripts["db:production:status"]).toBe(
+      "node scripts/run-production-db-command.mjs status",
+    );
+    expect(packageJson.scripts["db:production:migrate"]).toBe(
+      "node scripts/run-production-db-command.mjs migrate",
+    );
+    expect(packageJson.scripts["db:production:seed"]).toBe(
+      "node scripts/run-production-db-command.mjs seed",
+    );
     expect(packageJson.scripts["deploy:check"]).toBe("tsx scripts/deploy-check.ts");
   });
 
@@ -35,6 +44,9 @@ describe("Prisma migration script contract", () => {
     expect(readme).toContain("npm run db:generate");
     expect(readme).toContain("npm run db:migrate");
     expect(readme).toContain("npm run db:migrate:status");
+    expect(readme).toContain("npm run db:production:status");
+    expect(readme).toContain("npm run db:production:migrate");
+    expect(readme).toContain("npm run db:production:seed");
     expect(readme).toContain(
       "npm run db:migrate:dev -- --name descriptive_migration_name",
     );

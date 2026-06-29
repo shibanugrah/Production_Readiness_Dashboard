@@ -61,12 +61,16 @@ describe("deployment readiness contracts", () => {
     expect(combinedSource).not.toMatch(/db:seed|prisma\/seed/i);
   });
 
-  it("documents production deployment without provider-specific infrastructure", () => {
+  it("documents production deployment without automatic database writes", () => {
     const runbook = source("docs/runbooks/production-deployment.md");
 
-    expect(runbook).toContain("npm run db:migrate");
+    expect(runbook).toContain("npm run db:production:migrate");
+    expect(runbook).toContain("npm run db:production:status");
     expect(runbook).toContain("never `db:migrate:dev`");
     expect(runbook).toMatch(/do not use `prisma db push`/i);
+    expect(runbook).toContain(
+      "Migrations and seeding must be run manually and are never part of deployment startup.",
+    );
     expect(runbook).toContain("n8n is not configured by default");
     expect(runbook).not.toMatch(/render\.com|railway|fly\.io|supabase|neon/i);
   });

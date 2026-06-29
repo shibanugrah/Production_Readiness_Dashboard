@@ -151,13 +151,34 @@ Create production configuration from `.env.production.example` in the chosen pro
 ```powershell
 npm run deploy:check
 npm run db:generate
-npm run db:migrate
-npm run db:migrate:status
+npm run db:production:status
 ```
 
 `npm run deploy:check` validates the production configuration contract, Prisma artifacts, apply-only migration scripts, and Docker production image build. It does not deploy, apply migrations, seed data, call external services, or require cloud credentials.
 
-Use `npm run db:migrate` for deployment migrations. Do not use `db:migrate:dev` or `prisma db push` in production. `npm run db:seed` is only for explicit first-time demo initialization after deciding that seeded demo accounts should exist publicly; it must not run automatically in CI, Docker startup, or every deployment.
+Production database commands run through Vercel from an isolated temporary working directory that contains only Vercel link metadata from `.vercel/`, never `.env` files. Local `.env` and `.env.local` are intentionally isolated from production database commands so local development values cannot override Vercel Production variables.
+
+Read-only production migration status:
+
+```powershell
+npm run db:production:status
+```
+
+Explicit production migration:
+
+```powershell
+$env:CONFIRM_PRODUCTION_DB_WRITE="YES"; npm run db:production:migrate
+```
+
+Explicit one-time production seed:
+
+```powershell
+$env:CONFIRM_PRODUCTION_DB_WRITE="YES"; npm run db:production:seed
+```
+
+Migrations and seeding must be run manually and are never part of deployment startup. Do not use `db:migrate:dev` or `prisma db push` in production. Production seeding is only for explicit first-time demo initialization after deciding that seeded demo accounts should exist publicly; it must not run automatically in CI, Docker startup, or every deployment.
+
+No production secret should be copied into local `.env`, committed, pasted into logs, or displayed in screenshots.
 
 See `docs/runbooks/production-deployment.md` for the full release order, production checks, migration safety, seed-data policy, scheduler policy, rollback, and incident response.
 

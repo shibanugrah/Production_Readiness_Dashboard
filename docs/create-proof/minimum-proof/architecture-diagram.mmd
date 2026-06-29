@@ -1,7 +1,0 @@
-flowchart LR
-  browser["Browser"] --> nextjs["Next.js app"]
-  nextjs --> domain["Server-side auth/domain services"]
-  domain --> neon["Neon PostgreSQL"]
-  domain --> runner["Health-check runner"]
-  runner --> endpoint["Monitored public health endpoint"]
-  runner --> neon
