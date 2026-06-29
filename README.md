@@ -156,7 +156,9 @@ npm run db:production:status
 
 `npm run deploy:check` validates the production configuration contract, Prisma artifacts, apply-only migration scripts, and Docker production image build. It does not deploy, apply migrations, seed data, call external services, or require cloud credentials.
 
-Production database commands run through Vercel from an isolated temporary working directory that contains only Vercel link metadata from `.vercel/`, never `.env` files. Local `.env` and `.env.local` are intentionally isolated from production database commands so local development values cannot override Vercel Production variables.
+Local `.env` is for Docker and local development only. Keep it pointed at the local PostgreSQL service from `docker-compose.yml`; production secrets do not belong there.
+
+Explicit production database commands read only `.private/production-db.env`, an ignored operator-owned file that must contain only `DATABASE_URL`. The wrapper validates that URL as an external PostgreSQL target and passes it only to the child Prisma process so local `.env` cannot override the production command.
 
 Read-only production migration status:
 
@@ -178,7 +180,7 @@ $env:CONFIRM_PRODUCTION_DB_WRITE="YES"; npm run db:production:seed
 
 Migrations and seeding must be run manually and are never part of deployment startup. Do not use `db:migrate:dev` or `prisma db push` in production. Production seeding is only for explicit first-time demo initialization after deciding that seeded demo accounts should exist publicly; it must not run automatically in CI, Docker startup, or every deployment.
 
-No production secret should be copied into local `.env`, committed, pasted into logs, or displayed in screenshots.
+No production secret should be copied into README, `.env.example`, source code, local `.env`, screenshots, logs, or Git.
 
 See `docs/runbooks/production-deployment.md` for the full release order, production checks, migration safety, seed-data policy, scheduler policy, rollback, and incident response.
 

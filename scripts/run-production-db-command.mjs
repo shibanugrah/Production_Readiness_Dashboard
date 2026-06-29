@@ -1,48 +1,14 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
-import os from "node:os";
+import { existsSync, readFileSync } from "node:fs";
+import net from "node:net";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const SUPPORTED_COMMANDS = {
-  status: "db:migrate:status",
-  migrate: "db:migrate",
-  seed: "db:seed",
-};
-
+const PRODUCTION_ENV_PATH = ".private/production-db.env";
 const WRITE_COMMANDS = new Set(["migrate", "seed"]);
-
-const LOCAL_APP_ENV_KEYS = new Set([
-  "DATABASE_URL",
-  "AUTH_SECRET",
-  "INTERNAL_HEALTH_CHECK_SECRET",
-  "NODE_ENV",
-  "APP_VERSION",
-  "HEALTH_CHECK_LOCAL_ALLOWLIST_ENABLED",
-  "HEALTH_CHECK_LOCAL_ALLOWED_TARGETS",
-  "DEMO_SERVICE_HEALTH_ENABLED",
-  "PUBLIC_DEMO_ACCESS_ENABLED",
-  "PUBLIC_DEMO_APP_BASE_URL",
-  "PUBLIC_DEMO_VIEWER_EMAIL",
-  "PUBLIC_DEMO_OWNER_EMAIL",
-  "PUBLIC_DEMO_OWNER_PASSWORD",
-  "DEMO_OWNER_EMAIL",
-  "DEMO_OWNER_PASSWORD",
-  "DEMO_ADMIN_EMAIL",
-  "DEMO_ADMIN_PASSWORD",
-  "DEMO_VIEWER_EMAIL",
-  "DEMO_VIEWER_PASSWORD",
-  "CONFIRM_PRODUCTION_DB_WRITE",
-]);
-
-const OPTIONAL_VERCEL_METADATA_FILES = ["repo.json"];
-const EXECUTE_FLAG = "--execute";
-const EXECUTE_ENV_KEY = "PRODUCTION_DB_WRAPPER_EXECUTE";
-const EXECUTE_CWD_ENV_KEY = "PRODUCTION_DB_WRAPPER_CLEAN_CWD";
-const EXECUTE_WRITE_ENV_KEY = "PRODUCTION_DB_WRAPPER_WRITE_CONFIRMED";
+const SUPPORTED_COMMANDS = new Set(["status", "migrate", "seed"]);
 
 class CliError extends Error {
   constructor(message, exitCode = 1) {
@@ -67,7 +33,7 @@ export function parseSubcommand(argv) {
 
   const [subcommand] = argv;
 
-  if (!Object.hasOwn(SUPPORTED_COMMANDS, subcommand)) {
+  if (!SUPPORTED_COMMANDS.has(subcommand)) {
     throw new CliError(usage(), 2);
   }
 
@@ -78,37 +44,138 @@ export function getRepositoryRoot(scriptUrl = import.meta.url) {
   return path.resolve(path.dirname(fileURLToPath(scriptUrl)), "..");
 }
 
-export function getNpxCommand(platform = process.platform) {
-  return platform === "win32" ? "npx.cmd" : "npx";
-}
+function unquote(value) {
+  const trimmed = value.trim();
 
-export function buildChildEnvironment(environment = process.env) {
-  const childEnvironment = { ...environment };
-
-  for (const key of LOCAL_APP_ENV_KEYS) {
-    delete childEnvironment[key];
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
   }
 
-  return childEnvironment;
+  return trimmed;
 }
 
-export function buildVercelArgs({ repositoryRoot, subcommand }) {
-  return [
-    "--yes",
-    "vercel",
-    "env",
-    "run",
-    "-e",
-    "production",
-    "--",
-    "npm",
-    "--prefix",
-    repositoryRoot,
-    "run",
-    `db:production:${subcommand}`,
-    "--",
-    EXECUTE_FLAG,
-  ];
+export function parseProductionEnvFile(contents) {
+  const values = new Map();
+
+  for (const rawLine of contents.split(/\r?\n/)) {
+    const line = rawLine.trim();
+
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+
+    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+
+    if (!match) {
+      throw new CliError(
+        `${PRODUCTION_ENV_PATH} contains an invalid environment line.`,
+        1,
+      );
+    }
+
+    values.set(match[1], unquote(match[2]));
+  }
+
+  const keys = [...values.keys()];
+
+  if (keys.length !== 1 || keys[0] !== "DATABASE_URL") {
+    throw new CliError(
+      `${PRODUCTION_ENV_PATH} must contain only DATABASE_URL.`,
+      1,
+    );
+  }
+
+  return values.get("DATABASE_URL") ?? "";
+}
+
+function isPrivateIpAddress(hostname) {
+  const normalizedHost = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+
+  if (net.isIP(normalizedHost) === 4) {
+    const [first, second] = normalizedHost.split(".").map(Number);
+
+    return (
+      first === 10 ||
+      first === 127 ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 168) ||
+      (first === 169 && second === 254)
+    );
+  }
+
+  if (net.isIP(normalizedHost) === 6) {
+    return (
+      normalizedHost === "::1" ||
+      normalizedHost.startsWith("fc") ||
+      normalizedHost.startsWith("fd") ||
+      normalizedHost.startsWith("fe80")
+    );
+  }
+
+  return false;
+}
+
+export function validateProductionDatabaseUrl(databaseUrl) {
+  if (!databaseUrl.trim()) {
+    throw new CliError(`${PRODUCTION_ENV_PATH} DATABASE_URL is empty.`, 1);
+  }
+
+  let parsedUrl;
+
+  try {
+    parsedUrl = new URL(databaseUrl);
+  } catch {
+    throw new CliError(
+      `${PRODUCTION_ENV_PATH} DATABASE_URL must be a valid PostgreSQL URL.`,
+      1,
+    );
+  }
+
+  if (parsedUrl.protocol !== "postgresql:" && parsedUrl.protocol !== "postgres:") {
+    throw new CliError(
+      `${PRODUCTION_ENV_PATH} DATABASE_URL must be a PostgreSQL URL.`,
+      1,
+    );
+  }
+
+  const hostname = parsedUrl.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+
+  if (
+    ["localhost", "127.0.0.1", "::1", "postgres", "db", "app"].includes(
+      hostname,
+    ) ||
+    isPrivateIpAddress(hostname)
+  ) {
+    throw new CliError(
+      `${PRODUCTION_ENV_PATH} DATABASE_URL must point to an external production PostgreSQL host.`,
+      1,
+    );
+  }
+}
+
+export function readProductionDatabaseUrl({
+  repositoryRoot = getRepositoryRoot(),
+  fs = { existsSync, readFileSync },
+} = {}) {
+  const productionEnvPath = path.join(repositoryRoot, PRODUCTION_ENV_PATH);
+
+  if (!fs.existsSync(productionEnvPath)) {
+    throw new CliError(
+      `Missing ${PRODUCTION_ENV_PATH}. Create it locally with only DATABASE_URL before running production database commands.`,
+      1,
+    );
+  }
+
+  const databaseUrl = parseProductionEnvFile(
+    fs.readFileSync(productionEnvPath, "utf8"),
+  );
+
+  validateProductionDatabaseUrl(databaseUrl);
+
+  return databaseUrl;
 }
 
 function getLocalBinary(repositoryRoot, binaryName, platform) {
@@ -120,13 +187,13 @@ function getLocalBinary(repositoryRoot, binaryName, platform) {
   );
 }
 
-export function buildExecutorCommand({ repositoryRoot, subcommand, platform }) {
-  const schemaPath = path.join(repositoryRoot, "prisma", "schema.prisma");
+export function buildCommand({ repositoryRoot, subcommand, platform }) {
+  const schemaPath = path.join("prisma", "schema.prisma");
 
   if (subcommand === "seed") {
     return {
       command: getLocalBinary(repositoryRoot, "tsx", platform),
-      args: [path.join(repositoryRoot, "prisma", "seed.ts")],
+      args: [path.join("prisma", "seed.ts")],
     };
   }
 
@@ -139,13 +206,50 @@ export function buildExecutorCommand({ repositoryRoot, subcommand, platform }) {
   };
 }
 
-export function redactSensitiveOutput(value) {
-  return String(value)
+export function buildChildEnvironment(environment, databaseUrl) {
+  return {
+    ...environment,
+    DATABASE_URL: databaseUrl,
+    NODE_ENV: "production",
+  };
+}
+
+export function getDatabaseUrlSecrets(databaseUrl) {
+  const secrets = [databaseUrl];
+
+  try {
+    const parsedUrl = new URL(databaseUrl);
+
+    for (const value of [
+      parsedUrl.hostname,
+      decodeURIComponent(parsedUrl.username),
+      decodeURIComponent(parsedUrl.password),
+    ]) {
+      if (value) {
+        secrets.push(value);
+      }
+    }
+  } catch {
+    // Validation catches malformed URLs before command execution.
+  }
+
+  return secrets;
+}
+
+export function redactSensitiveOutput(value, secrets = []) {
+  let output = String(value);
+
+  for (const secret of secrets) {
+    if (secret) {
+      output = output.split(secret).join("[redacted]");
+    }
+  }
+
+  return output
     .replace(
       /\b(postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis):\/\/[^\s"'<>`]+/gi,
       "$1://[redacted]",
     )
-    .replace(/(https?:\/\/)[^/\s:@]+:[^@\s/]+@/gi, "$1[redacted]@")
     .replace(
       /\b([A-Z0-9_]*(?:DATABASE_URL|PASSWORD|PASS|SECRET|TOKEN|CREDENTIAL|CONNECTION_STRING)[A-Z0-9_]*)\s*=\s*("[^"]*"|'[^']*'|[^\s\r\n]+)/gi,
       "$1=[redacted]",
@@ -156,44 +260,21 @@ export function redactSensitiveOutput(value) {
     );
 }
 
-function writeSafe(stream, chunk) {
-  stream.write(redactSensitiveOutput(chunk));
+function writeSafe(stream, chunk, secrets) {
+  stream.write(redactSensitiveOutput(chunk, secrets));
 }
 
-function wait(milliseconds) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
-async function removeTemporaryDirectory(fs, directory) {
-  const retryableCodes = new Set(["EBUSY", "ENOTEMPTY", "EPERM"]);
-
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    try {
-      await fs.rm(directory, { recursive: true, force: true });
-      return;
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        "code" in error &&
-        retryableCodes.has(String(error.code)) &&
-        attempt < 19
-      ) {
-        await wait(250);
-        continue;
-      }
-
-      throw error;
-    }
-  }
-}
-
-function waitForChild(childProcess, stdout, stderr) {
+function waitForChild(childProcess, stdout, stderr, secrets) {
   return new Promise((resolve) => {
-    childProcess.stdout?.on("data", (chunk) => writeSafe(stdout, chunk));
-    childProcess.stderr?.on("data", (chunk) => writeSafe(stderr, chunk));
+    childProcess.stdout?.on("data", (chunk) => writeSafe(stdout, chunk, secrets));
+    childProcess.stderr?.on("data", (chunk) => writeSafe(stderr, chunk, secrets));
 
     childProcess.on("error", (error) => {
-      writeSafe(stderr, `Failed to start Vercel production database command: ${error.message}\n`);
+      writeSafe(
+        stderr,
+        `Failed to start production database command: ${error.message}\n`,
+        secrets,
+      );
       resolve(1);
     });
 
@@ -205,7 +286,8 @@ function waitForChild(childProcess, stdout, stderr) {
 
       writeSafe(
         stderr,
-        `Vercel production database command exited after signal ${signal ?? "unknown"}.\n`,
+        `Production database command exited after signal ${signal ?? "unknown"}.\n`,
+        secrets,
       );
       resolve(1);
     });
@@ -219,16 +301,11 @@ export async function runProductionDbCommand(argv, options = {}) {
     repositoryRoot = getRepositoryRoot(),
     stdout = process.stdout,
     stderr = process.stderr,
-    tmpdir = os.tmpdir(),
-    fs = { existsSync, copyFile, mkdir, mkdtemp, rm },
+    fs = { existsSync, readFileSync },
     spawnProcess = spawn,
   } = options;
 
-  if (argv.length === 2 && argv[1] === EXECUTE_FLAG) {
-    return executeProductionDbCommand([argv[0]], options);
-  }
-
-  let tempDirectory;
+  let databaseUrl = "";
 
   try {
     const subcommand = parseSubcommand(argv);
@@ -243,152 +320,40 @@ export async function runProductionDbCommand(argv, options = {}) {
       );
     }
 
-    const projectJsonPath = path.join(repositoryRoot, ".vercel", "project.json");
+    databaseUrl = readProductionDatabaseUrl({ repositoryRoot, fs });
 
-    if (!fs.existsSync(projectJsonPath)) {
-      throw new CliError(
-        "Missing .vercel/project.json. Link this checkout to the Vercel project before running production database commands.",
-        1,
-      );
-    }
-
-    tempDirectory = await fs.mkdtemp(
-      path.join(tmpdir, "production-readiness-vercel-db-"),
-    );
-    const tempVercelDirectory = path.join(tempDirectory, ".vercel");
-
-    await fs.mkdir(tempVercelDirectory, { recursive: true });
-    await fs.copyFile(
-      projectJsonPath,
-      path.join(tempVercelDirectory, "project.json"),
-    );
-
-    for (const metadataFile of OPTIONAL_VERCEL_METADATA_FILES) {
-      const metadataPath = path.join(repositoryRoot, ".vercel", metadataFile);
-
-      if (fs.existsSync(metadataPath)) {
-        await fs.copyFile(
-          metadataPath,
-          path.join(tempVercelDirectory, metadataFile),
-        );
-      }
-    }
-
-    writeSafe(
-      stdout,
-      `Running production database ${subcommand} through Vercel from an isolated temporary working directory.\n`,
-    );
-
-    const command = getNpxCommand(platform);
-    const args = buildVercelArgs({ repositoryRoot, subcommand });
-    const childEnvironment = buildChildEnvironment(environment);
-
-    childEnvironment[EXECUTE_ENV_KEY] = "1";
-    childEnvironment[EXECUTE_CWD_ENV_KEY] = tempDirectory;
-
-    if (WRITE_COMMANDS.has(subcommand)) {
-      childEnvironment[EXECUTE_WRITE_ENV_KEY] = "YES";
-    }
-
-    const childProcess = spawnProcess(command, args, {
-      cwd: tempDirectory,
-      env: childEnvironment,
-      shell: platform === "win32",
-      windowsHide: true,
-    });
-
-    return await waitForChild(childProcess, stdout, stderr);
-  } catch (error) {
-    if (error instanceof CliError) {
-      writeSafe(stderr, `${error.message}\n`);
-      return error.exitCode;
-    }
-
-    if (error instanceof Error) {
-      writeSafe(stderr, `${error.message}\n`);
-      return 1;
-    }
-
-    writeSafe(stderr, "Unknown production database command failure.\n");
-    return 1;
-  } finally {
-    if (tempDirectory) {
-      try {
-        await removeTemporaryDirectory(fs, tempDirectory);
-      } catch {
-        writeSafe(
-          stderr,
-          "Failed to remove the temporary Vercel working directory after the command completed.\n",
-        );
-      }
-    }
-  }
-}
-
-async function executeProductionDbCommand(argv, options = {}) {
-  const {
-    environment = process.env,
-    platform = process.platform,
-    repositoryRoot = getRepositoryRoot(),
-    stdout = process.stdout,
-    stderr = process.stderr,
-    spawnProcess = spawn,
-  } = options;
-
-  try {
-    const subcommand = parseSubcommand(argv);
-
-    if (environment[EXECUTE_ENV_KEY] !== "1") {
-      throw new CliError(
-        "Refusing to run the internal production database executor directly.",
-        2,
-      );
-    }
-
-    if (
-      WRITE_COMMANDS.has(subcommand) &&
-      environment[EXECUTE_WRITE_ENV_KEY] !== "YES"
-    ) {
-      throw new CliError(
-        `Refusing to run production ${subcommand}. Set CONFIRM_PRODUCTION_DB_WRITE=YES in the environment before invoking the production wrapper.`,
-        1,
-      );
-    }
-
-    const cleanWorkingDirectory = environment[EXECUTE_CWD_ENV_KEY];
-
-    if (!cleanWorkingDirectory) {
-      throw new CliError(
-        "Missing isolated production database working directory.",
-        1,
-      );
-    }
-
-    const { command, args } = buildExecutorCommand({
+    const { command, args } = buildCommand({
       repositoryRoot,
       subcommand,
       platform,
     });
     const childProcess = spawnProcess(command, args, {
-      cwd: cleanWorkingDirectory,
-      env: environment,
+      cwd: repositoryRoot,
+      env: buildChildEnvironment(environment, databaseUrl),
       shell: platform === "win32",
       windowsHide: true,
     });
 
-    return await waitForChild(childProcess, stdout, stderr);
+    return await waitForChild(
+      childProcess,
+      stdout,
+      stderr,
+      getDatabaseUrlSecrets(databaseUrl),
+    );
   } catch (error) {
     if (error instanceof CliError) {
-      writeSafe(stderr, `${error.message}\n`);
+      writeSafe(stderr, `${error.message}\n`, [databaseUrl]);
       return error.exitCode;
     }
 
     if (error instanceof Error) {
-      writeSafe(stderr, `${error.message}\n`);
+      writeSafe(stderr, `${error.message}\n`, [databaseUrl]);
       return 1;
     }
 
-    writeSafe(stderr, "Unknown production database executor failure.\n");
+    writeSafe(stderr, "Unknown production database command failure.\n", [
+      databaseUrl,
+    ]);
     return 1;
   }
 }

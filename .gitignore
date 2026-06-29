@@ -1,5 +1,6 @@
 .env
 .env*.local
+.private/
 .next
 node_modules
 coverage
@@ -8,4 +9,6 @@ dist
 prisma/dev.db
 
 .vercel
+.vercel/.env.*.local
+.vercel/*.env
 .env*

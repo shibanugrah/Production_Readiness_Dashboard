@@ -46,15 +46,16 @@ This runbook defines the provider-neutral release contract for Production Readin
 
 ## C. Migration Safety
 
-- Use `npm run db:production:status` for the read-only Vercel Production migration check.
+- Use `npm run db:production:status` for the read-only production migration check.
 - Use `$env:CONFIRM_PRODUCTION_DB_WRITE="YES"; npm run db:production:migrate`, never `db:migrate:dev`, for production migrations.
-- The production database wrapper runs Vercel from an isolated temporary working directory containing only Vercel link metadata from `.vercel/`, never `.env` files. Local `.env` and `.env.local` are intentionally isolated from production database commands so local development values cannot override Vercel Production variables.
+- Local `.env` is for Docker and local development only. `.private/production-db.env` is an ignored operator-owned file for explicit production database commands and must contain only `DATABASE_URL`.
+- The production database wrapper validates that URL as an external PostgreSQL target and passes it only to the child Prisma process so local `.env` cannot override the production command.
 - Inspect generated migration SQL before deployment.
 - Do not use `prisma db push` for this tracked-schema workflow.
 - Migrations and seeding must be run manually and are never part of deployment startup.
 - Prefer backward-compatible migrations before releasing code that depends on them.
 - Roll back application code carefully if needed; do not roll back database migrations blindly. First inspect whether the migration is reversible and whether production data would be lost.
-- No production secret should be copied into local `.env`, committed, pasted into logs, or displayed in screenshots.
+- No production secret should be copied into README, `.env.example`, source code, local `.env`, screenshots, logs, or Git.
 
 ## D. Seed-Data Policy
 

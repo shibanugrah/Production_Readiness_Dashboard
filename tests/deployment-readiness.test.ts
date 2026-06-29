@@ -71,6 +71,8 @@ describe("deployment readiness contracts", () => {
     expect(runbook).toContain(
       "Migrations and seeding must be run manually and are never part of deployment startup.",
     );
+    expect(runbook).toContain(".private/production-db.env");
+    expect(runbook).toContain("local `.env` cannot override the production command");
     expect(runbook).toContain("n8n is not configured by default");
     expect(runbook).not.toMatch(/render\.com|railway|fly\.io|supabase|neon/i);
   });
